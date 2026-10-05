@@ -19,7 +19,7 @@ dp = Dispatcher()
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎰 Открыть игру", web_app=WebAppInfo(url=settings.WEBAPP_URL))]
+        [InlineKeyboardButton(text="🎰 Открыть игру", web_app=WebAppInfo(url=settings.WEBAPP_URL + "?v=2026"))]
     ])
     await message.answer(
         "Привет! 🎰\n\nЭто игра «Номера» — крути рулетку, собирай коллекцию редких номеров со всего мира.\n\nНажми кнопку ниже, чтобы начать 👇",
