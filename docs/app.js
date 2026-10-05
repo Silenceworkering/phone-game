@@ -11,7 +11,7 @@ const TOKEN_KEY = 'pn_user_token';
 const state = {
   token: localStorage.getItem(TOKEN_KEY) || '',
   user: null,
-  meta: null,             // данные из /api/status: редкости, страны, цены
+  meta: null,
   balance: 0,
   spinsTotal: 0,
   inventory: [],
@@ -21,7 +21,7 @@ const state = {
   operatorCode: null,
   minRarity: 'common',
   spinning: false,
-  pending: null,          // результат крутки до подтверждения
+  pending: null,
   multiSelected: new Set(),
   usedPromos: new Set()
 };
@@ -53,7 +53,6 @@ async function api(path, options = {}) {
   const res = await fetch(API_BASE + path, { ...options, headers });
 
   if (res.status === 401) {
-    // токен просрочен — попробуем переавторизоваться
     localStorage.removeItem(TOKEN_KEY);
     state.token = '';
   }
@@ -74,7 +73,7 @@ async function api(path, options = {}) {
 async function authenticate() {
   const tg = window.Telegram && window.Telegram.WebApp;
   if (!tg || !tg.initData) {
-    throw new Error('Telegram WebApp недоступен. Открой игру через бота.');
+    throw new Error('Открой игру через бота');
   }
 
   const res = await fetch(API_BASE + '/api/auth', {
@@ -97,14 +96,13 @@ async function authenticate() {
 }
 
 // ============================================================
-// LOAD META (/api/status)
+// LOAD META
 // ============================================================
 async function loadMeta() {
   const res = await fetch(API_BASE + '/api/status', { cache: 'no-store' });
   if (!res.ok) throw new Error('Не удалось загрузить данные игры');
   state.meta = await res.json();
 
-  // Техперерыв
   if (state.meta.maintenance) {
     showMaintenance(state.meta.maintenance_text || 'Технические работы');
     return false;
@@ -113,7 +111,7 @@ async function loadMeta() {
 }
 
 // ============================================================
-// LOAD PROFILE (/api/me + /api/inventory)
+// LOAD PROFILE + INVENTORY
 // ============================================================
 async function loadProfile() {
   const me = await api('/api/me');
@@ -171,7 +169,7 @@ function fireworks(color) {
 }
 
 // ============================================================
-// MAINTENANCE OVERLAY
+// MAINTENANCE
 // ============================================================
 function showMaintenance(text) {
   if ($('maintOverlay')) return;
@@ -234,7 +232,6 @@ function updateSellAllButton() {
 }
 
 function updateSelectionBar() {
-  // Чистим устаревшие
   const alive = new Set(state.inventory.map(i => i.id));
   for (const id of Array.from(state.selected)) {
     if (!alive.has(id)) state.selected.delete(id);
@@ -262,7 +259,7 @@ function updateSelectionBar() {
 }
 
 // ============================================================
-// COUNTRY SELECTOR
+// COUNTRY / OPERATOR SELECTORS
 // ============================================================
 function renderCountrySelector() {
   const wrap = $('countrySelector');
@@ -286,9 +283,6 @@ function renderCountrySelector() {
   });
 }
 
-// ============================================================
-// OPERATOR SELECTOR
-// ============================================================
 function renderOperatorSelector() {
   const wrap = $('operatorSelector');
   if (!wrap || !state.meta) return;
@@ -296,7 +290,6 @@ function renderOperatorSelector() {
 
   const country = getCountry(state.country);
 
-  // "Любой"
   const anyEl = document.createElement('div');
   anyEl.className = 'country-chip op-chip-mini' + (state.operatorCode === null ? ' active' : '');
   anyEl.innerHTML = '<span class="cf">🎲</span><span class="cn">Любой</span>';
@@ -323,9 +316,29 @@ function renderOperatorSelector() {
 }
 
 // ============================================================
-// REELS
+// REELS (анимация)
 // ============================================================
-function makeReelRow(phone) {
+function randomDigit() { return String(Math.floor(Math.random() * 10)); }
+
+function fakePhone(country) {
+  const code = country.code;
+  const d = randomDigit;
+  let number = '';
+  if (code === 'RU') number = '+7 (9' + d() + d() + ') ' + d() + d() + d() + '-' + d() + d() + '-' + d() + d();
+  else if (code === 'US') number = '+1 (2' + d() + d() + ') ' + d() + d() + d() + '-' + d() + d() + d() + d();
+  else if (code === 'GB') number = '+44 7' + d() + d() + d() + ' ' + d() + d() + d() + ' ' + d() + d() + d();
+  else if (code === 'DE') number = '+49 15' + d() + ' ' + d() + d() + d() + d() + d() + d() + d();
+  else if (code === 'FR') number = '+33 6 ' + d() + d() + ' ' + d() + d() + ' ' + d() + d() + ' ' + d() + d();
+  else if (code === 'JP') number = '+81 90-' + d() + d() + d() + d() + '-' + d() + d() + d() + d();
+  else if (code === 'KR') number = '+82 10-' + d() + d() + d() + d() + '-' + d() + d() + d() + d();
+  else if (code === 'CN') number = '+86 13' + d() + ' ' + d() + d() + d() + d() + ' ' + d() + d() + d() + d();
+  else if (code === 'AE') number = '+971 5' + d() + ' ' + d() + d() + d() + ' ' + d() + d() + d() + d();
+  else if (code === 'BR') number = '+55 (11) 9' + d() + d() + d() + d() + '-' + d() + d() + d() + d();
+  else number = '+00 ' + d() + d() + d() + d() + d() + d() + d() + d();
+  return number;
+}
+
+function makeReelRow(phone, real = false) {
   const row = document.createElement('div');
   row.className = 'reel-row';
   const r = getRarity(phone.rarity || 'common');
@@ -345,6 +358,7 @@ function makeReelRow(phone) {
   row.appendChild(text);
   row.appendChild(op);
   row.dataset.color = r.color;
+  row.dataset.real = real ? '1' : '0';
   return row;
 }
 
@@ -358,19 +372,88 @@ function renderStaticReels() {
   const country = getCountry(state.country);
   for (let i = 0; i < 5; i++) {
     const fake = {
-      number: '· · · · · · · · ·',
+      number: fakePhone(country),
       country_flag: country.flag,
       operator_code: '',
       rarity: 'common'
     };
-    const row = document.createElement('div');
-    row.className = 'reel-row';
-    row.innerHTML = '<span class="flag">' + country.flag + '</span>— — — — — — —';
-    row.style.color = '#2a2a3d';
+    const row = makeReelRow(fake, false);
+    row.style.color = '#3a3a52';
     reels.appendChild(row);
   }
   const rows = reels.children;
-  if (rows[2]) rows[2].style.color = '#4a4a5e';
+  if (rows[2]) {
+    rows[2].classList.add('center');
+    rows[2].style.color = '#6a6a80';
+  }
+}
+
+function buildAnimationStrip(finalPhone, highlightIndex, totalItems) {
+  const country = getCountry(state.country);
+  const strip = [];
+  for (let i = 0; i < totalItems; i++) {
+    if (i === highlightIndex) {
+      strip.push({ ...finalPhone, _real: true });
+    } else {
+      strip.push({
+        number: fakePhone(country),
+        country_flag: country.flag,
+        operator_code: '',
+        rarity: 'common',
+        _real: false
+      });
+    }
+  }
+  return strip;
+}
+
+function animateReels(strip, highlightIndex, duration, onDone) {
+  const reels = $('reels');
+  reels.innerHTML = '';
+  reels.style.transition = 'none';
+  reels.style.transform = 'translateY(0)';
+
+  strip.forEach(p => reels.appendChild(makeReelRow(p, p._real)));
+
+  const rowHeight = 64;
+  const paddingTop = 8;
+  const windowH = $('rouletteWindow').clientHeight;
+  const centerOffset = windowH / 2 - rowHeight / 2 - paddingTop;
+
+  const startY = centerOffset;
+  const endY = centerOffset - highlightIndex * rowHeight;
+
+  reels.style.transform = 'translateY(' + startY + 'px)';
+
+  const rows = reels.children;
+  const startTime = performance.now();
+  const easeOutQuint = t => 1 - Math.pow(1 - t, 5);
+
+  function frame(now) {
+    const t = Math.min((now - startTime) / duration, 1);
+    const eased = easeOutQuint(t);
+    const y = startY + (endY - startY) * eased;
+    reels.style.transform = 'translateY(' + y + 'px)';
+
+    const centerFloat = (centerOffset - y) / rowHeight;
+    for (let i = 0; i < rows.length; i++) {
+      const dist = Math.abs(i - centerFloat);
+      const row = rows[i];
+      if (dist < 0.5) {
+        row.classList.add('center');
+        row.style.color = row.dataset.color;
+        row.style.textShadow = '0 0 18px ' + row.dataset.color;
+      } else {
+        row.classList.remove('center');
+        row.style.color = '';
+        row.style.textShadow = '';
+      }
+    }
+
+    if (t < 1) requestAnimationFrame(frame);
+    else onDone();
+  }
+  requestAnimationFrame(frame);
 }
 
 // ============================================================
@@ -385,7 +468,7 @@ async function spinOne() {
   }
 
   state.spinning = true;
-  state.balance -= cost; // оптимистично
+  state.balance -= cost;
   updateUI();
   $('spinBtn').disabled = true;
   $('spinBtn5').disabled = true;
@@ -406,74 +489,14 @@ async function spinOne() {
     state.spinsTotal = res.spins_total;
     updateUI();
 
-    // Строим ленту — 40 номеров, в центре реальный
     const finalPhone = res.phone;
     const totalItems = 40;
     const centerIndex = totalItems - 3;
-    const strip = [];
-    const country = getCountry(state.country);
-    for (let i = 0; i < totalItems; i++) {
-      if (i === centerIndex) {
-        strip.push(finalPhone);
-      } else {
-        // фейковые номера для анимации
-        strip.push({
-          number: '· · · · · · · · ·',
-          country_flag: country.flag,
-          operator_code: '',
-          rarity: 'common'
-        });
-      }
-    }
+    const strip = buildAnimationStrip(finalPhone, centerIndex, totalItems);
 
-    const reels = $('reels');
-    reels.innerHTML = '';
-    reels.style.transition = 'none';
-    reels.style.transform = 'translateY(0)';
-    strip.forEach(p => reels.appendChild(makeReelRow(p)));
-
-    const rowHeight = 64;
-    const paddingTop = 8;
-    const windowH = $('rouletteWindow').clientHeight;
-    const centerOffset = windowH / 2 - rowHeight / 2 - paddingTop;
-
-    const startY = centerOffset;
-    const endY = centerOffset - centerIndex * rowHeight;
-
-    reels.style.transform = 'translateY(' + startY + 'px)';
-
-    const rows = reels.children;
-    const duration = 3800;
-    const startTime = performance.now();
-    const easeOutQuint = t => 1 - Math.pow(1 - t, 5);
-
-    function frame(now) {
-      const t = Math.min((now - startTime) / duration, 1);
-      const eased = easeOutQuint(t);
-      const y = startY + (endY - startY) * eased;
-      reels.style.transform = 'translateY(' + y + 'px)';
-
-      const centerFloat = (centerOffset - y) / rowHeight;
-      for (let i = 0; i < rows.length; i++) {
-        const dist = Math.abs(i - centerFloat);
-        const row = rows[i];
-        if (dist < 0.5) {
-          row.classList.add('center');
-          row.style.color = row.dataset.color;
-          row.style.textShadow = '0 0 18px ' + row.dataset.color;
-        } else {
-          row.classList.remove('center');
-          row.style.color = '';
-          row.style.textShadow = '';
-        }
-      }
-
-      if (t < 1) requestAnimationFrame(frame);
-      else finishSpinSingle(finalPhone);
-    }
-    requestAnimationFrame(frame);
+    animateReels(strip, centerIndex, 3800, () => finishSpinSingle(finalPhone));
   } catch (e) {
-    state.balance += cost; // откат
+    state.balance += cost;
     updateUI();
     showToast('❌ ' + e.message, '#ff375f');
     state.spinning = false;
@@ -552,65 +575,11 @@ async function spinFive() {
     const phones = res.phones;
     const highlightPhone = phones[phones.length - 1];
 
-    // Анимация ленты
     const totalItems = 30;
     const centerIndex = totalItems - 3;
-    const strip = [];
-    const country = getCountry(state.country);
-    for (let i = 0; i < totalItems; i++) {
-      if (i === centerIndex) strip.push(highlightPhone);
-      else strip.push({
-        number: '· · · · · · · · ·',
-        country_flag: country.flag,
-        operator_code: '',
-        rarity: 'common'
-      });
-    }
+    const strip = buildAnimationStrip(highlightPhone, centerIndex, totalItems);
 
-    const reels = $('reels');
-    reels.innerHTML = '';
-    reels.style.transition = 'none';
-    reels.style.transform = 'translateY(0)';
-    strip.forEach(p => reels.appendChild(makeReelRow(p)));
-
-    const rowHeight = 64;
-    const paddingTop = 8;
-    const windowH = $('rouletteWindow').clientHeight;
-    const centerOffset = windowH / 2 - rowHeight / 2 - paddingTop;
-    const startY = centerOffset;
-    const endY = centerOffset - centerIndex * rowHeight;
-    reels.style.transform = 'translateY(' + startY + 'px)';
-
-    const rows = reels.children;
-    const duration = 2800;
-    const startTime = performance.now();
-    const easeOutQuint = t => 1 - Math.pow(1 - t, 5);
-
-    function frame(now) {
-      const t = Math.min((now - startTime) / duration, 1);
-      const eased = easeOutQuint(t);
-      const y = startY + (endY - startY) * eased;
-      reels.style.transform = 'translateY(' + y + 'px)';
-
-      const centerFloat = (centerOffset - y) / rowHeight;
-      for (let i = 0; i < rows.length; i++) {
-        const dist = Math.abs(i - centerFloat);
-        const row = rows[i];
-        if (dist < 0.5) {
-          row.classList.add('center');
-          row.style.color = row.dataset.color;
-          row.style.textShadow = '0 0 18px ' + row.dataset.color;
-        } else {
-          row.classList.remove('center');
-          row.style.color = '';
-          row.style.textShadow = '';
-        }
-      }
-
-      if (t < 1) requestAnimationFrame(frame);
-      else finishSpinFive(phones, highlightPhone);
-    }
-    requestAnimationFrame(frame);
+    animateReels(strip, centerIndex, 2800, () => finishSpinFive(phones, highlightPhone));
   } catch (e) {
     state.balance += cost;
     updateUI();
@@ -628,9 +597,8 @@ function finishSpinFive(phones, highlightPhone) {
   const sorted = phones.slice().sort((a, b) => order[b.rarity] - order[a.rarity]);
 
   const topRarity = sorted[0].rarity;
-
-  // Оформление рулетки по highlightPhone (последний = центральный)
   const hlRarity = getRarity(highlightPhone.rarity);
+
   $('rouletteWindow').className = 'roulette-window rarity-' + highlightPhone.rarity;
 
   $('resultRarity').textContent = 'Результат ×5';
@@ -647,10 +615,9 @@ function finishSpinFive(phones, highlightPhone) {
 
   $('resultActions').style.display = 'none';
 
-  // Все выбраны по умолчанию — для продажи/сохранения
   state.multiSelected.clear();
   phones.forEach((p, i) => {
-    p._idx = i; // временный id внутри партии
+    p._idx = i;
     state.multiSelected.add(i);
   });
 
@@ -685,31 +652,32 @@ function renderMultiListSelectable(sortedPhones, highlightPhone) {
   wrap.className = 'multi-list';
   wrap.style.maxHeight = '260px';
 
-  // Заголовок с суммой выбранного
   const head = document.createElement('div');
   head.id = 'multiHead';
   head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(10,132,255,.12);border:1.5px solid rgba(10,132,255,.4);border-radius:12px;margin-bottom:6px;flex-shrink:0;';
   head.innerHTML =
-    '<span id="multiHeadCount" style="font-size:12px;font-weight:800;color:#fff;">Выбрано: 5/5</span>' +
+    '<span id="multiHeadCount" style="font-size:12px;font-weight:800;color:#fff;">Выбрано</span>' +
     '<span id="multiHeadSum" style="font-size:13px;font-weight:900;color:#ffd60a;">0 ₽</span>';
   wrap.appendChild(head);
 
   sortedPhones.forEach((p, index) => {
+    if (p._idx === undefined) p._idx = index;
+
     const r = getRarity(p.rarity);
     const isHl = highlightPhone && p.number === highlightPhone.number && p.rarity === highlightPhone.rarity;
     const isSel = state.multiSelected.has(p._idx);
 
     const item = document.createElement('div');
     item.className = 'multi-item rarity-' + p.rarity + (isHl ? ' is-highlight' : '');
-    item.style.cursor = 'pointer';
+    item.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;';
     item.innerHTML =
-      '<div class="multi-check" style="width:22px;height:22px;border-radius:50%;border:2px solid ' + (isSel ? '#0a84ff' : 'rgba(255,255,255,.3)') + ';background:' + (isSel ? '#0a84ff' : 'rgba(0,0,0,.3)') + ';display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;font-weight:900;color:' + (isSel ? '#fff' : 'transparent') + ';">✓</div>' +
-      '<span class="mi-flag">' + p.country_flag + '</span>' +
-      '<div class="mi-info">' +
-        '<div class="mi-num">' + p.number + '</div>' +
-        '<div class="mi-meta" style="color:' + r.color + '">' + r.name + ' · ' + p.operator_name + (isHl ? ' · ⭐' : '') + '</div>' +
+      '<div style="width:22px;height:22px;border-radius:50%;border:2px solid ' + (isSel ? '#0a84ff' : 'rgba(255,255,255,.3)') + ';background:' + (isSel ? '#0a84ff' : 'rgba(0,0,0,.3)') + ';display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;font-weight:900;color:' + (isSel ? '#fff' : 'transparent') + ';">✓</div>' +
+      '<span class="mi-flag" style="font-size:22px;flex-shrink:0;">' + (p.country_flag || '🌍') + '</span>' +
+      '<div class="mi-info" style="flex:1;min-width:0;">' +
+        '<div class="mi-num" style="font-family:monospace;font-size:13px;font-weight:800;color:#fff;margin-bottom:2px;word-break:break-all;">' + p.number + '</div>' +
+        '<div class="mi-meta" style="font-size:10px;color:' + r.color + ';font-weight:700;">' + r.name + ' · ' + p.operator_name + (isHl ? ' · ⭐' : '') + '</div>' +
       '</div>' +
-      '<div class="mi-price">' + fmt(p.price) + ' ₽</div>';
+      '<div class="mi-price" style="font-size:12px;font-weight:900;color:#ffd60a;flex-shrink:0;">' + fmt(p.price) + ' ₽</div>';
 
     item.addEventListener('click', () => {
       if (state.multiSelected.has(p._idx)) state.multiSelected.delete(p._idx);
@@ -722,7 +690,6 @@ function renderMultiListSelectable(sortedPhones, highlightPhone) {
   $('resultCard').appendChild(wrap);
   updateMultiHead();
 
-  // Кнопки
   const actions = document.createElement('div');
   actions.id = 'multiActions';
   actions.style.cssText = 'display:flex;flex-direction:column;gap:8px;width:100%;max-width:340px;margin-top:10px;';
@@ -793,7 +760,7 @@ function updateMultiButtons() {
 }
 
 // ============================================================
-// MULTI ACTIONS (×5)
+// MULTI ACTIONS
 // ============================================================
 async function handleMultiKeep() {
   if (!state.pending || !state.pending.multi) return;
@@ -808,8 +775,8 @@ async function handleMultiKeep() {
 
     showToast('📦 +' + toKeep.length + ' в инвентарь', '#0a84ff');
 
-    // Удаляем сохранённые из pending
     state.pending.phones = state.pending.phones.filter(p => !state.multiSelected.has(p._idx));
+    state.pending.phones.forEach((p, i) => { p._idx = i; });
     state.multiSelected.clear();
     state.pending.phones.forEach(p => state.multiSelected.add(p._idx));
 
@@ -845,6 +812,7 @@ async function handleMultiSellSelected() {
     showToast('💵 +' + fmt(res.total) + ' ₽ (' + toSell.length + ')', '#34c759');
 
     state.pending.phones = state.pending.phones.filter(p => !state.multiSelected.has(p._idx));
+    state.pending.phones.forEach((p, i) => { p._idx = i; });
     state.multiSelected.clear();
     state.pending.phones.forEach(p => state.multiSelected.add(p._idx));
 
@@ -1046,7 +1014,7 @@ function clearSelection() {
 }
 
 // ============================================================
-// SELL SELECTED / ALL (INVENTORY)
+// SELL
 // ============================================================
 async function sellSelectedFromInventory() {
   if (state.selected.size === 0) return;
@@ -1083,7 +1051,7 @@ async function sellAllFromInventory() {
 }
 
 // ============================================================
-// PROMO BAR
+// PROMO
 // ============================================================
 function togglePromoBar() {
   const bar = $('promoBar');
@@ -1161,30 +1129,25 @@ function setupTabs() {
 }
 
 // ============================================================
-// BOOTSTRAP
+// INIT
 // ============================================================
 async function init() {
   try {
-    // 1. Загружаем метаданные игры
     const ok = await loadMeta();
-    if (!ok) return; // техперерыв
+    if (!ok) return;
 
-    // 2. Авторизация (используем кэшированный токен, если есть)
     if (!state.token) {
       await authenticate();
     } else {
       try {
         await loadProfile();
       } catch (e) {
-        // токен просрочен — переавторизация
         await authenticate();
       }
     }
 
-    // 3. Загружаем инвентарь
     await loadInventory();
 
-    // 4. Рендерим UI
     renderCountrySelector();
     renderOperatorSelector();
     renderRarityOptions();
@@ -1193,7 +1156,6 @@ async function init() {
     updateUI();
     setupTabs();
 
-    // 5. Вешаем обработчики
     $('spinBtn').addEventListener('click', spinOne);
     $('spinBtn5').addEventListener('click', spinFive);
     $('sellAllBtn').addEventListener('click', sellAllFromInventory);
@@ -1221,7 +1183,6 @@ async function init() {
 }
 
 async function boot() {
-  // Проверка техперерыва — до всего остального
   try {
     const res = await fetch(API_BASE + '/api/status', { cache: 'no-store' });
     if (res.ok) {
