@@ -30,10 +30,12 @@
   </div>
 
   <div class="tabs" id="tabs">
-    <div class="tab active" data-page="roulette">🎰 Крутка</div>
-    <div class="tab" data-page="inventory">📦 Инвентарь <span class="count" id="tabInvCount">0</span></div>
-    <div class="tab" data-page="countries">🌍 Страны</div>
-    <div class="tab" data-page="market">💱 Рынок</div>
+    <div class="tab active" data-page="roulette">🎰</div>
+    <div class="tab" data-page="inventory">📦 <span class="count" id="tabInvCount">0</span></div>
+    <div class="tab" data-page="countries">🌍</div>
+    <div class="tab" data-page="craft">⚗️</div>
+    <div class="tab" data-page="top">🏆</div>
+    <div class="tab" data-page="profile">👤</div>
   </div>
 
   <div class="promo-bar" id="promoBar">
@@ -49,6 +51,7 @@
   </div>
 
   <div class="pages">
+    <!-- ROULETTE -->
     <div class="page page-roulette active" id="page-roulette">
       <div class="country-selector" id="countrySelector"></div>
       <div class="operator-selector" id="operatorSelector"></div>
@@ -74,6 +77,7 @@
       </div>
     </div>
 
+    <!-- INVENTORY -->
     <div class="page" id="page-inventory">
       <div class="inv-selection-bar" id="invSelectionBar">
         <div class="inv-selection-info">
@@ -86,15 +90,54 @@
       <div class="inv-grid" id="invGrid"></div>
     </div>
 
+    <!-- COUNTRIES -->
     <div class="page" id="page-countries">
       <div class="country-list" id="countryList"></div>
     </div>
 
-    <div class="page" id="page-market">
-      <div class="market-placeholder">
-        <div class="market-icon">📞💱</div>
-        <div class="market-title">Рынок номеров</div>
-        <div class="market-text">В разработке...</div>
+    <!-- CRAFT -->
+    <div class="page" id="page-craft">
+      <h3 class="page-title">⚗️ Крафт</h3>
+      <p class="page-hint">Собери 5 номеров одной редкости и обменяй на 1 номер выше редкостью</p>
+      <div class="craft-list" id="craftList"></div>
+    </div>
+
+    <!-- LEADERBOARD -->
+    <div class="page" id="page-top">
+      <h3 class="page-title">🏆 Топ игроков</h3>
+      <div class="lb-tabs">
+        <button class="lb-tab active" data-lb="balance">По балансу</button>
+        <button class="lb-tab" data-lb="spins">По круткам</button>
+      </div>
+      <div class="lb-list" id="lbList"></div>
+    </div>
+
+    <!-- PROFILE -->
+    <div class="page" id="page-profile">
+      <h3 class="page-title">👤 Профиль</h3>
+
+      <!-- DAILY BONUS -->
+      <div class="profile-section">
+        <div class="bonus-card" id="bonusCard">
+          <div class="bonus-icon">💰</div>
+          <div class="bonus-info">
+            <div class="bonus-title">Ежедневный бонус</div>
+            <div class="bonus-sub" id="bonusSub">Нажми, чтобы получить</div>
+          </div>
+          <button class="bonus-btn" id="bonusBtn" type="button">Забрать</button>
+        </div>
+      </div>
+
+      <!-- INCOMING TRADES -->
+      <div class="profile-section" id="tradesSection" style="display:none;">
+        <div class="section-title">🔄 Входящие обмены</div>
+        <div id="tradesList"></div>
+      </div>
+
+      <!-- ACHIEVEMENTS -->
+      <div class="profile-section">
+        <div class="section-title">🏅 Достижения <span id="achCount" style="color:#6e6e85;font-size:12px;">0/0</span></div>
+        <div class="ach-list" id="achList"></div>
       </div>
     </div>
   </div>
@@ -139,39 +182,34 @@
   </div>
 </div>
 
-<div class="modal-backdrop" id="opModal">
-  <div class="modal op-modal">
-    <div class="op-modal-head">
-      <div class="op-modal-flag" id="opFlag"></div>
-      <div>
-        <div class="op-modal-name" id="opName"></div>
-        <div class="op-modal-country" id="opCountry"></div>
-      </div>
-    </div>
-    <div class="op-numbers-list" id="opNumbersList"></div>
-    <div class="op-modal-summary">
-      <span>Итого:</span>
-      <span class="op-total" id="opTotal">0 ₽</span>
+<div class="modal-backdrop" id="craftModal">
+  <div class="modal">
+    <div class="modal-flag" id="craftFlag">⚗️</div>
+    <div class="modal-rarity" id="craftRarity"></div>
+    <div class="modal-number" id="craftResult" style="font-size:15px;font-family:inherit;"></div>
+    <div class="modal-price-box">
+      <div class="modal-price-label">Стоимость крафта</div>
+      <div class="modal-price-value" id="craftCost"></div>
     </div>
     <div class="modal-actions">
-      <button class="modal-btn cancel" id="opCancel" type="button">Закрыть</button>
-      <button class="modal-btn sell" id="opSellAll" type="button">Продать все</button>
+      <button class="modal-btn cancel" id="craftCancel" type="button">Отмена</button>
+      <button class="modal-btn sell" id="craftConfirm" type="button">Скрафтить</button>
     </div>
   </div>
 </div>
 
-<div class="modal-backdrop" id="confirmModal">
+<div class="modal-backdrop" id="achModal">
   <div class="modal">
-    <div class="modal-flag">💵</div>
-    <div class="modal-rarity" style="color:#34c759;">Продажа</div>
-    <div class="modal-number" id="confirmText" style="font-size:15px;font-family:inherit;font-weight:700;"></div>
+    <div class="modal-flag" id="achFlag">🏅</div>
+    <div class="modal-rarity" style="color:#ffd60a;">Новое достижение!</div>
+    <div class="modal-number" id="achName" style="font-size:18px;font-family:inherit;"></div>
+    <div class="modal-op" id="achDesc"></div>
     <div class="modal-price-box">
-      <div class="modal-price-label">Вы получите</div>
-      <div class="modal-price-value" id="confirmPrice">0 ₽</div>
+      <div class="modal-price-label">Награда</div>
+      <div class="modal-price-value" id="achReward"></div>
     </div>
     <div class="modal-actions">
-      <button class="modal-btn cancel" id="confirmCancel" type="button">Отмена</button>
-      <button class="modal-btn sell" id="confirmOk" type="button">Продать</button>
+      <button class="modal-btn sell" id="achOk" type="button" style="flex:1;">Забрать</button>
     </div>
   </div>
 </div>
@@ -179,6 +217,6 @@
 <div class="toast" id="toast"></div>
 <div class="fireworks" id="fireworks"></div>
 
-<script type="module" src="app.js?v=2026"></script>
+<script type="module" src="app.js?v=2026b"></script>
 </body>
 </html>
