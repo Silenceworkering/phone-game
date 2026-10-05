@@ -9,7 +9,7 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
     telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)
-    username = Column(String(64), default="")
+    username = Column(String(64), default="", index=True)
     first_name = Column(String(128), default="")
     last_name = Column(String(128), default="")
     photo_url = Column(String(512), default="")
@@ -100,12 +100,17 @@ class Achievement(Base):
 
 
 class Trade(Base):
+    """Обмен между игроками: номера + деньги."""
     __tablename__ = "trades"
     id = Column(Integer, primary_key=True)
     from_tg_id = Column(BigInteger, nullable=False, index=True)
     to_tg_id = Column(BigInteger, nullable=False, index=True)
-    from_inv_id = Column(Integer, nullable=False)
-    to_inv_id = Column(Integer, nullable=False)
-    status = Column(String(16), default="pending")
+    # JSON-строка со списком ID номеров которые передаются
+    from_items = Column(Text, default="[]")     # [1,2,3]
+    to_items = Column(Text, default="[]")       # [4,5,6] (что хочет в обмен)
+    from_money = Column(Integer, default=0)     # сколько денег передаёт
+    to_money = Column(Integer, default=0)       # сколько денег хочет
+    message = Column(String(256), default="")
+    status = Column(String(16), default="pending")   # pending/accepted/declined/cancelled
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime, nullable=True)
