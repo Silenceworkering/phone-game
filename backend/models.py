@@ -6,34 +6,25 @@ Base = declarative_base()
 
 
 class User(Base):
-    """Игрок."""
     __tablename__ = "users"
-
     id = Column(Integer, primary_key=True)
     telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)
     username = Column(String(64), default="")
     first_name = Column(String(128), default="")
     last_name = Column(String(128), default="")
     photo_url = Column(String(512), default="")
-
-    balance = Column(Integer, default=10000)
+    balance = Column(Integer, default=15000)
     spins_total = Column(Integer, default=0)
     is_banned = Column(Boolean, default=False)
-
     is_admin = Column(Boolean, default=False)
     is_owner = Column(Boolean, default=False)
-
-    # Ежедневный бонус
     last_bonus_at = Column(DateTime, nullable=True)
-
     created_at = Column(DateTime, default=datetime.utcnow)
     last_seen = Column(DateTime, default=datetime.utcnow)
 
 
 class Admin(Base):
-    """Логины/пароли для админки."""
     __tablename__ = "admins"
-
     id = Column(Integer, primary_key=True)
     login = Column(String(64), unique=True, nullable=False, index=True)
     password_hash = Column(String(256), nullable=False)
@@ -44,9 +35,7 @@ class Admin(Base):
 
 
 class Promocode(Base):
-    """Промокоды."""
     __tablename__ = "promocodes"
-
     id = Column(Integer, primary_key=True)
     code = Column(String(32), unique=True, nullable=False, index=True)
     amount = Column(Integer, default=0)
@@ -59,9 +48,7 @@ class Promocode(Base):
 
 
 class PromoUse(Base):
-    """Кто и когда использовал промокод."""
     __tablename__ = "promo_uses"
-
     id = Column(Integer, primary_key=True)
     promocode_id = Column(Integer, ForeignKey("promocodes.id"))
     telegram_id = Column(BigInteger, nullable=False)
@@ -69,18 +56,14 @@ class PromoUse(Base):
 
 
 class Setting(Base):
-    """Настройки игры."""
     __tablename__ = "settings"
-
     key = Column(String(64), primary_key=True)
     value = Column(Text, default="")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class SpinLog(Base):
-    """Лог всех круток."""
     __tablename__ = "spin_log"
-
     id = Column(Integer, primary_key=True)
     telegram_id = Column(BigInteger, nullable=False, index=True)
     rarity = Column(String(32))
@@ -94,9 +77,7 @@ class SpinLog(Base):
 
 
 class Inventory(Base):
-    """Инвентарь игрока."""
     __tablename__ = "inventory"
-
     id = Column(Integer, primary_key=True)
     telegram_id = Column(BigInteger, nullable=False, index=True)
     number = Column(String(64), nullable=False)
@@ -111,9 +92,7 @@ class Inventory(Base):
 
 
 class Achievement(Base):
-    """Полученные достижения игроков."""
     __tablename__ = "achievements"
-
     id = Column(Integer, primary_key=True)
     telegram_id = Column(BigInteger, nullable=False, index=True)
     code = Column(String(64), nullable=False, index=True)
@@ -121,14 +100,12 @@ class Achievement(Base):
 
 
 class Trade(Base):
-    """Обмен между игроками."""
     __tablename__ = "trades"
-
     id = Column(Integer, primary_key=True)
     from_tg_id = Column(BigInteger, nullable=False, index=True)
     to_tg_id = Column(BigInteger, nullable=False, index=True)
-    from_inv_id = Column(Integer, nullable=False)     # ID из inventory
-    to_inv_id = Column(Integer, nullable=False)       # ID из inventory
-    status = Column(String(16), default="pending")    # pending/accepted/declined/cancelled
+    from_inv_id = Column(Integer, nullable=False)
+    to_inv_id = Column(Integer, nullable=False)
+    status = Column(String(16), default="pending")
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime, nullable=True)
