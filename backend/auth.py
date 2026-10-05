@@ -6,7 +6,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-from telegram_init_data import parse_init_data
+from telegram_init_data import validate, parse
 
 from .config import settings
 from .database import get_db
@@ -42,7 +42,8 @@ def decode_token(token: str) -> dict:
 
 def verify_telegram_init_data(init_data: str) -> Optional[dict]:
     try:
-        parsed = parse_init_data(token=settings.BOT_TOKEN, init_data=init_data)
+        validate(init_data, settings.BOT_TOKEN)
+        parsed = parse(init_data)
         if hasattr(parsed, "user") and parsed.user:
             return {
                 "id": parsed.user.id,
