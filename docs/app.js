@@ -1304,8 +1304,55 @@ function init() {
   }
 }
 
+// ============ MAINTENANCE CHECK ============
+async function checkMaintenance() {
+  try {
+    const API = 'https://phone-game.onrender.com';
+    const res = await fetch(API + '/api/status', { cache: 'no-store' });
+    const data = await res.json();
+    if (data.maintenance) {
+      showMaintenance(data.maintenance_text || 'Технические работы');
+      return true;
+    }
+  } catch (e) {
+    console.log('Status check failed:', e);
+  }
+  return false;
+}
+
+function showMaintenance(text) {
+  const overlay = document.createElement('div');
+  overlay.id = 'maintOverlay';
+  overlay.style.cssText = `
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: linear-gradient(160deg, #14141f 0%, #0b0b12 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 30px;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  `;
+  overlay.innerHTML = `
+    <div style="font-size: 80px; margin-bottom: 20px;">🛠</div>
+    <div style="font-size: 24px; font-weight: 900; margin-bottom: 12px;">Технические работы</div>
+    <div style="font-size: 15px; color: #6e6e85; font-weight: 700; max-width: 320px; line-height: 1.5;">${text}</div>
+    <div style="font-size: 13px; color: #3a3a4a; margin-top: 30px;">Скоро вернёмся 👋</div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+async function boot() {
+  const isMaint = await checkMaintenance();
+  if (!isMaint) init();
+}
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', boot);
 } else {
-  init();
+  boot();
 }
