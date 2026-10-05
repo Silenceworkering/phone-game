@@ -637,4 +637,162 @@ def leaderboard(db: Session = Depends(get_db)):
             {
                 "tg_id": u.telegram_id,
                 "name": u.first_name or u.username or "Игрок",
-                "balance
+                "balance": u.balance,
+                "spins": u.spins_total,
+                "is_owner": u.is_owner,
+            }
+            for u in users
+        ],
+    }
+
+
+@router.get("/leaderboard/spins")
+def leaderboard_spins(db: Session = Depends(get_db)):
+    """Топ-50 по круткам."""
+    users = db.query(User).filter(User.is_banned == False).order_by(desc(User.spins_total)).limit(50).all()
+    return {
+        "spins": [
+            {
+                "tg_id": u.telegram_id,
+                "name": u.first_name or u.username or "Игрок",
+                "balance": u.balance,
+                "spins": u.spins_total,
+                "is_owner": u.is_owner,
+            }
+            for u in users
+        ],
+    }
+
+
+# ============================================================
+# ОБМЕН
+# ============================================================
+@router.post("/trade/create")
+def trade_create(
+    payload: dict,
+    user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authorized")
+
+    my_inv_id = payload.get("my_inv_id")
+    their_inv_id = payload.get("their_inv_id")
+
+    if not my_inv_id or not their_inv_id:
+        raise HTTPException(status_code=400, detail="Укажи оба номера")
+
+    my_item = db.query(Inventory).filter(
+        Inventory.id == my_inv_id, Inventory.telegram_id == user.telegram_id
+    ).first()
+    if not my_item:
+        raise HTTPException(status_code=404, detail="Твой номер не найден")
+
+    their_item = db.query(Inventory).filter(Inventory.id == their_inv_id).first()
+    if not their_item:
+        raise HTTPException(status_code=404, detail="Его номер не найден")
+    if their_item.telegram_id == user.telegram_id:
+        raise HTTPException(status_code=400, detail="Нельзя обменять с самим собой")
+
+    trade = Trade(
+        from_tg_id=user.telegram_id,
+        to_tg_id=their_item.telegram_id,
+        from_inv_id=my_inv_id,
+        to_inv_id=their_inv_id,
+    )
+    db.add(trade)
+    db.commit()
+    return {"success": True, "trade_id": trade.id}
+
+
+@router.get("/trade/incoming")
+def trade_incoming(
+    user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
+    """Входящие предложения обмена."""
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authorized")
+
+    trades = db.query(Trade).filter(
+        Trade.to_tg_id == user.telegram_id,
+        Trade.status == "pending",
+    ).order_by(desc(Trade.created_at)).all()
+
+    result = []
+    for t in trades:
+        from_user = db.query(User).filter(User.telegram_id == t.from_tg_id).first()
+        from_item = db.query(Inventory).filter(Inventory.id == t.from_inv_id).first()
+        to_item = db.query(Inventory).filter(Inventory.id == t.to_inv_id).first()
+        if not from_item or not to_item: continue
+        result.append({
+            "id": t.id,
+            "from_name": from_user.first_name if from_user else "Игрок",
+            "from_item": {
+                "number": from_item.number, "rarity": from_item.rarity,
+                "price": from_item.price, "country_flag": from_item.country_flag,
+                "operator_name": from_item.operator_name,
+            },
+            "to_item": {
+                "number": to_item.number, "rarity": to_item.rarity,
+                "price": to_item.price, "country_flag": to_item.country_flag,
+                "operator_name": to_item.operator_name,
+            },
+        })
+    return {"trades": result}
+
+
+@router.post("/trade/{trade_id}/respond")
+def trade_respond(
+    trade_id: int,
+    payload: dict,
+    user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authorized")
+
+    action = payload.get("action")  # "accept" | "decline"
+    if action not in ("accept", "decline"):
+        raise HTTPException(status_code=400, detail="action must be accept or decline")
+
+    trade = db.query(Trade).filter(
+        Trade.id == trade_id,
+        Trade.to_tg_id == user.telegram_id,
+        Trade.status == "pending",
+    ).first()
+    if not trade:
+        raise HTTPException(status_code=404, detail="Обмен не найден")
+
+    if action == "decline":
+        trade.status = "declined"
+        trade.resolved_at = datetime.utcnow()
+        db.commit()
+        return {"success": True, "status": "declined"}
+
+    # accept — меняем владельцев
+    from_item = db.query(Inventory).filter(Inventory.id == trade.from_inv_id).first()
+    to_item = db.query(Inventory).filter(Inventory.id == trade.to_inv_id).first()
+    if not from_item or not to_item:
+        raise HTTPException(status_code=400, detail="Один из номеров уже продан")
+
+    from_item.telegram_id, to_item.telegram_id = to_item.telegram_id, from_item.telegram_id
+    trade.status = "accepted"
+    trade.resolved_at = datetime.utcnow()
+    db.commit()
+    return {"success": True, "status": "accepted"}
+
+
+@router.get("/stats")
+def user_stats(
+    user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authorized")
+    inv_count = db.query(Inventory).filter(Inventory.telegram_id == user.telegram_id).count()
+    return {
+        "balance": user.balance,
+        "spins_total": user.spins_total,
+        "inventory_count": inv_count,
+    }
