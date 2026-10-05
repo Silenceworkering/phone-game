@@ -51,7 +51,6 @@
   </div>
 
   <div class="pages">
-    <!-- ROULETTE -->
     <div class="page page-roulette active" id="page-roulette">
       <div class="country-selector" id="countrySelector"></div>
       <div class="operator-selector" id="operatorSelector"></div>
@@ -86,7 +85,6 @@
       </div>
     </div>
 
-    <!-- INVENTORY -->
     <div class="page" id="page-inventory">
       <div class="inv-selection-bar" id="invSelectionBar">
         <div class="inv-selection-info">
@@ -99,19 +97,16 @@
       <div class="inv-grid" id="invGrid"></div>
     </div>
 
-    <!-- COUNTRIES -->
     <div class="page" id="page-countries">
       <div class="country-list" id="countryList"></div>
     </div>
 
-    <!-- CRAFT -->
     <div class="page" id="page-craft">
       <h3 class="page-title">⚗️ Крафт</h3>
       <p class="page-hint">Собери 5 номеров одной редкости и обменяй на 1 номер выше редкостью</p>
       <div class="craft-list" id="craftList"></div>
     </div>
 
-    <!-- TOP -->
     <div class="page" id="page-top">
       <h3 class="page-title">🏆 Топ игроков</h3>
       <div class="lb-tabs">
@@ -121,25 +116,19 @@
       <div class="lb-list" id="lbList"></div>
     </div>
 
-    <!-- PROFILE -->
     <div class="page" id="page-profile">
       <h3 class="page-title">👤 Профиль</h3>
 
-      <!-- ОБМЕНЫ -->
       <div class="profile-section">
         <div class="section-title">🔄 Обмены</div>
-
         <button class="trade-create-btn" id="openTradeBtn" type="button">➕ Создать обмен</button>
-
         <div class="trade-tabs">
           <button class="trade-tab active" data-trade="incoming">📥 Входящие <span id="tradeInCount" class="trade-count">0</span></button>
           <button class="trade-tab" data-trade="outgoing">📤 Исходящие</button>
         </div>
-
         <div id="tradesList"></div>
       </div>
 
-      <!-- ДОСТИЖЕНИЯ -->
       <div class="profile-section">
         <div class="section-title">🏅 Достижения <span id="achCount" style="color:#6e6e85;font-size:12px;">0/0</span></div>
         <div class="ach-list" id="achList"></div>
@@ -208,7 +197,6 @@
   </div>
 </div>
 
-<!-- МОДАЛКА СОЗДАНИЯ ОБМЕНА -->
 <div class="modal-backdrop" id="tradeModal">
   <div class="modal trade-modal">
     <div class="trade-modal-title">🔄 Новый обмен</div>
@@ -243,7 +231,6 @@
   </div>
 </div>
 
-<!-- ПОДТВЕРЖДЕНИЕ -->
 <div class="modal-backdrop" id="tradeConfirmModal">
   <div class="modal">
     <div class="modal-flag">⚠️</div>
@@ -259,6 +246,6 @@
 <div class="toast" id="toast"></div>
 <div class="fireworks" id="fireworks"></div>
 
-<script type="module" src="app.js?v=2026p"></script>
+<script type="module" src="app.js?v=2026r"></script>
 </body>
 </html>
