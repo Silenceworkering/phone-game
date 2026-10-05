@@ -501,3 +501,69 @@ body::before{
   box-shadow:0 6px 18px rgba(191,90,242,.35);
 }
 .promo-btn:active{ transform:scale(.95); }
+/* ============================================================
+   MULTI LIST (×5) — исправление отображения
+   ============================================================ */
+#multiListWrap {
+  width: 100% !important;
+  max-width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  margin: 14px 0 !important;
+  max-height: 300px !important;
+  overflow-y: auto !important;
+  padding-right: 4px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+#multiListWrap .multi-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 10px 12px !important;
+  background: rgba(255,255,255,.03) !important;
+  border: 1.5px solid rgba(142,142,147,.4) !important;
+  border-radius: 12px !important;
+  text-align: left !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+#multiListWrap .multi-item.rarity-common    { border-color: rgba(142,142,147,.4) !important; }
+#multiListWrap .multi-item.rarity-rare      { border-color: rgba(52,199,89,.5) !important; }
+#multiListWrap .multi-item.rarity-epic      { border-color: rgba(191,90,242,.55) !important; }
+#multiListWrap .multi-item.rarity-mythic    { border-color: rgba(255,55,95,.6) !important; }
+#multiListWrap .multi-item.rarity-legendary { border-color: rgba(255,214,10,.65) !important; }
+#multiListWrap .multi-item.rarity-secret    { border-color: rgba(0,229,255,.7) !important; }
+
+#multiListWrap .multi-item.is-highlight {
+  box-shadow: 0 0 0 2px rgba(255,214,10,.6), 0 0 24px rgba(255,214,10,.35) !important;
+}
+
+#multiListWrap .mi-flag { font-size: 22px !important; flex-shrink: 0 !important; }
+#multiListWrap .mi-info { flex: 1 !important; min-width: 0 !important; }
+#multiListWrap .mi-num { 
+  font-family: 'SF Mono', 'Roboto Mono', monospace !important;
+  font-size: 13px !important; 
+  font-weight: 800 !important; 
+  color: #fff !important; 
+  margin-bottom: 2px !important; 
+  word-break: break-all !important; 
+}
+#multiListWrap .mi-meta { font-size: 10px !important; font-weight: 700 !important; }
+#multiListWrap .mi-price { font-size: 12px !important; font-weight: 900 !important; color: #ffd60a !important; flex-shrink: 0 !important; }
+
+#multiActions {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  width: 100% !important;
+  max-width: 340px !important;
+  margin-top: 10px !important;
+}
+
+/* Результат ×5 — скролл */
+#resultCard .multi-list::-webkit-scrollbar { width: 4px; }
+#resultCard .multi-list::-webkit-scrollbar-thumb { background: #26263a; border-radius: 4px; }
