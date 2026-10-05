@@ -75,7 +75,7 @@ class Setting(Base):
 
 
 class SpinLog(Base):
-    """Лог круток."""
+    """Лог всех круток."""
     __tablename__ = "spin_log"
 
     id = Column(Integer, primary_key=True)
@@ -86,4 +86,28 @@ class SpinLog(Base):
     cost = Column(Integer, default=0)
     country_code = Column(String(8))
     operator_code = Column(String(16))
+    is_multi = Column(Boolean, default=False)   # было ли это частью x5
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Inventory(Base):
+    """
+    Инвентарь игрока — все номера, которые он сохранил.
+    Номера из круток попадают сюда только если игрок нажал "В инвентарь".
+    """
+    __tablename__ = "inventory"
+
+    id = Column(Integer, primary_key=True)
+    telegram_id = Column(BigInteger, nullable=False, index=True)
+
+    number = Column(String(64), nullable=False)
+    rarity = Column(String(32), nullable=False, index=True)
+    price = Column(Integer, default=0)
+
+    country_code = Column(String(8))
+    country_flag = Column(String(16))
+    country_name = Column(String(64))
+    operator_code = Column(String(16))
+    operator_name = Column(String(64))
+
     created_at = Column(DateTime, default=datetime.utcnow)
