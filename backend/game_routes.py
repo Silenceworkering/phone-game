@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional
 import json
 
 from .auth import (
@@ -19,9 +19,6 @@ from . import game_data as gd
 router = APIRouter(prefix="/api", tags=["game"])
 
 
-# ============================================================
-# АВТОРИЗАЦИЯ
-# ============================================================
 @router.post("/auth")
 def auth_telegram(payload: dict, db: Session = Depends(get_db)):
     init_data = payload.get("init_data", "")
@@ -66,9 +63,6 @@ def me(user: Optional[User] = Depends(get_current_user_optional)):
     }
 
 
-# ============================================================
-# СТАТУС
-# ============================================================
 @router.get("/status")
 def game_status(db: Session = Depends(get_db)):
     return {
@@ -86,9 +80,6 @@ def game_status(db: Session = Depends(get_db)):
     }
 
 
-# ============================================================
-# ПРОМОКОДЫ
-# ============================================================
 @router.post("/promo/activate")
 def activate_promo(payload: dict, user: Optional[User] = Depends(get_current_user_optional), db: Session = Depends(get_db)):
     if not user:
@@ -104,10 +95,7 @@ def activate_promo(payload: dict, user: Optional[User] = Depends(get_current_use
     if promo.max_uses > 0 and promo.uses >= promo.max_uses:
         raise HTTPException(status_code=400, detail="Лимит использований исчерпан")
     if not promo.reusable:
-        used = db.query(PromoUse).filter(
-            PromoUse.promocode_id == promo.id,
-            PromoUse.telegram_id == user.telegram_id,
-        ).first()
+        used = db.query(PromoUse).filter(PromoUse.promocode_id == promo.id, PromoUse.telegram_id == user.telegram_id).first()
         if used:
             raise HTTPException(status_code=400, detail="Вы уже использовали этот промокод")
     user.balance += promo.amount
@@ -117,9 +105,6 @@ def activate_promo(payload: dict, user: Optional[User] = Depends(get_current_use
     return {"success": True, "amount": promo.amount, "balance": user.balance}
 
 
-# ============================================================
-# БОНУС
-# ============================================================
 @router.post("/daily-bonus")
 def daily_bonus(user: Optional[User] = Depends(get_current_user_optional), db: Session = Depends(get_db)):
     if not user:
@@ -155,9 +140,6 @@ def daily_bonus_status(user: Optional[User] = Depends(get_current_user_optional)
     return {"available": False, "bonus": bonus, "seconds_left": int(remaining.total_seconds())}
 
 
-# ============================================================
-# СПИНЫ
-# ============================================================
 def _check_maintenance(db):
     if get_setting(db, "maintenance", "0") == "1":
         raise HTTPException(status_code=423, detail=get_setting(db, "maintenance_text", "Технические работы"))
@@ -254,9 +236,6 @@ def spin5(payload: dict, user: Optional[User] = Depends(get_current_user_optiona
     return {"phones": phones, "cost": total_cost, "balance": user.balance, "spins_total": user.spins_total, "new_achievements": new_ach}
 
 
-# ============================================================
-# ИНВЕНТАРЬ
-# ============================================================
 @router.get("/inventory")
 def get_inventory(user: Optional[User] = Depends(get_current_user_optional), db: Session = Depends(get_db)):
     if not user: raise HTTPException(status_code=401, detail="Not authorized")
@@ -323,9 +302,6 @@ def sell_immediate(payload: dict, user: Optional[User] = Depends(get_current_use
     return {"success": True, "sold": len(phones), "total": total, "balance": user.balance, "new_achievements": new_ach}
 
 
-# ============================================================
-# ДОСТИЖЕНИЯ
-# ============================================================
 @router.get("/achievements")
 def list_achievements(user: Optional[User] = Depends(get_current_user_optional), db: Session = Depends(get_db)):
     if not user: raise HTTPException(status_code=401, detail="Not authorized")
@@ -333,9 +309,6 @@ def list_achievements(user: Optional[User] = Depends(get_current_user_optional),
     return {"all": [{"code": k, "name": v["name"], "desc": v["desc"], "reward": v["reward"], "unlocked": k in got, "got_at": got[k].isoformat() if k in got else None} for k, v in gd.ACHIEVEMENTS.items()], "total_unlocked": len(got), "total": len(gd.ACHIEVEMENTS)}
 
 
-# ============================================================
-# КРАФТ
-# ============================================================
 @router.get("/craft")
 def craft_info(user: Optional[User] = Depends(get_current_user_optional), db: Session = Depends(get_db)):
     if not user: raise HTTPException(status_code=401, detail="Not authorized")
@@ -369,9 +342,6 @@ def craft(payload: dict, user: Optional[User] = Depends(get_current_user_optiona
     return {"success": True, "new_phone": {"number": phone["number"], "rarity": new_rarity, "price": price, "country_code": phone["country_code"], "country_flag": phone["country_flag"], "country_name": phone["country_name"], "operator_code": phone["operator_code"], "operator_name": phone["operator_name"]}, "balance": user.balance, "new_achievements": new_ach}
 
 
-# ============================================================
-# ЛИДЕРБОРД
-# ============================================================
 @router.get("/leaderboard")
 def leaderboard(db: Session = Depends(get_db)):
     users = db.query(User).filter(User.is_banned == False).order_by(desc(User.balance)).limit(50).all()
@@ -389,7 +359,6 @@ def leaderboard_spins(db: Session = Depends(get_db)):
 # ============================================================
 @router.post("/trade/find")
 def trade_find(payload: dict, user: Optional[User] = Depends(get_current_user_optional), db: Session = Depends(get_db)):
-    """Находит игрока по @username."""
     if not user: raise HTTPException(status_code=401, detail="Not authorized")
     username = (payload.get("username") or "").strip().lstrip("@")
     if not username: raise HTTPException(status_code=400, detail="Введите @username")
@@ -397,7 +366,6 @@ def trade_find(payload: dict, user: Optional[User] = Depends(get_current_user_op
     if not target: raise HTTPException(status_code=404, detail="Игрок не найден")
     if target.telegram_id == user.telegram_id: raise HTTPException(status_code=400, detail="Нельзя обменять с самим собой")
     if target.is_banned: raise HTTPException(status_code=400, detail="Игрок заблокирован")
-    # Находим общий список номеров target для показа (первые 20)
     target_items = db.query(Inventory).filter(Inventory.telegram_id == target.telegram_id).order_by(desc(Inventory.created_at)).limit(30).all()
     return {
         "user": {"telegram_id": target.telegram_id, "first_name": target.first_name, "username": target.username},
@@ -414,8 +382,8 @@ def trade_create(payload: dict, user: Optional[User] = Depends(get_current_user_
     if not target: raise HTTPException(status_code=404, detail="Игрок не найден")
     if target.telegram_id == user.telegram_id: raise HTTPException(status_code=400, detail="Нельзя обменять с самим собой")
 
-    from_items = payload.get("from_items") or []      # мои номера для передачи
-    to_items = payload.get("to_items") or []          # его номера, которые я хочу
+    from_items = payload.get("from_items") or []
+    to_items = payload.get("to_items") or []
     from_money = int(payload.get("from_money") or 0)
     to_money = int(payload.get("to_money") or 0)
     message = (payload.get("message") or "")[:256]
@@ -423,16 +391,12 @@ def trade_create(payload: dict, user: Optional[User] = Depends(get_current_user_
     if not from_items and not to_items and not from_money and not to_money:
         raise HTTPException(status_code=400, detail="Добавь номера или деньги")
 
-    # Проверяем что все мои номера принадлежат мне
     if from_items:
         my_owned = db.query(Inventory).filter(Inventory.telegram_id == user.telegram_id, Inventory.id.in_(from_items)).count()
         if my_owned != len(from_items): raise HTTPException(status_code=400, detail="Один из твоих номеров не найден")
-
-    # Проверяем что его номера принадлежат ему
     if to_items:
         his_owned = db.query(Inventory).filter(Inventory.telegram_id == target.telegram_id, Inventory.id.in_(to_items)).count()
         if his_owned != len(to_items): raise HTTPException(status_code=400, detail="Один из его номеров не найден")
-
     if from_money > user.balance: raise HTTPException(status_code=400, detail="Недостаточно денег")
 
     trade = Trade(
@@ -456,10 +420,10 @@ def trade_incoming(user: Optional[User] = Depends(get_current_user_optional), db
     result = []
     for t in trades:
         from_user = db.query(User).filter(User.telegram_id == t.from_tg_id).first()
-        from_items_ids = json.loads(t.from_items or "[]")
-        to_items_ids = json.loads(t.to_items or "[]")
-        from_items = db.query(Inventory).filter(Inventory.id.in_(from_items_ids)).all() if from_items_ids else []
-        to_items = db.query(Inventory).filter(Inventory.id.in_(to_items_ids)).all() if to_items_ids else []
+        from_ids = json.loads(t.from_items or "[]")
+        to_ids = json.loads(t.to_items or "[]")
+        from_items = db.query(Inventory).filter(Inventory.id.in_(from_ids)).all() if from_ids else []
+        to_items = db.query(Inventory).filter(Inventory.id.in_(to_ids)).all() if to_ids else []
         result.append({
             "id": t.id,
             "from_name": from_user.first_name if from_user else "Игрок",
@@ -506,35 +470,22 @@ def trade_respond(trade_id: int, payload: dict, user: Optional[User] = Depends(g
         db.commit()
         return {"success": True, "status": "declined"}
 
-    # ACCEPT
     from_user = db.query(User).filter(User.telegram_id == trade.from_tg_id).first()
-    if not from_user:
-        raise HTTPException(status_code=400, detail="Отправитель не найден")
+    if not from_user: raise HTTPException(status_code=400, detail="Отправитель не найден")
 
-    from_items_ids = json.loads(trade.from_items or "[]")
-    to_items_ids = json.loads(trade.to_items or "[]")
+    from_ids = json.loads(trade.from_items or "[]")
+    to_ids = json.loads(trade.to_items or "[]")
+    from_items = db.query(Inventory).filter(Inventory.id.in_(from_ids)).all() if from_ids else []
+    to_items = db.query(Inventory).filter(Inventory.id.in_(to_ids)).all() if to_ids else []
 
-    # Проверяем что номера всё ещё на месте
-    from_items = db.query(Inventory).filter(Inventory.id.in_(from_items_ids)).all() if from_items_ids else []
-    to_items = db.query(Inventory).filter(Inventory.id.in_(to_items_ids)).all() if to_items_ids else []
+    if len(from_items) != len(from_ids): raise HTTPException(status_code=400, detail="Один из номеров отправителя уже продан")
+    if len(to_items) != len(to_ids): raise HTTPException(status_code=400, detail="Один из твоих номеров уже продан")
+    if trade.from_money > from_user.balance: raise HTTPException(status_code=400, detail="У отправителя недостаточно денег")
+    if trade.to_money > user.balance: raise HTTPException(status_code=400, detail="У тебя недостаточно денег")
 
-    if len(from_items) != len(from_items_ids):
-        raise HTTPException(status_code=400, detail="Один из номеров отправителя уже продан")
-    if len(to_items) != len(to_items_ids):
-        raise HTTPException(status_code=400, detail="Один из твоих номеров уже продан")
+    for it in from_items: it.telegram_id = user.telegram_id
+    for it in to_items: it.telegram_id = from_user.telegram_id
 
-    if trade.from_money > from_user.balance:
-        raise HTTPException(status_code=400, detail="У отправителя недостаточно денег")
-    if trade.to_money > user.balance:
-        raise HTTPException(status_code=400, detail="У тебя недостаточно денег")
-
-    # Передача номеров
-    for it in from_items:
-        it.telegram_id = user.telegram_id
-    for it in to_items:
-        it.telegram_id = from_user.telegram_id
-
-    # Передача денег
     if trade.from_money > 0:
         from_user.balance -= trade.from_money
         user.balance += trade.from_money
