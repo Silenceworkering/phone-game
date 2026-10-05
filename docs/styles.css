@@ -567,3 +567,74 @@ body::before{
 /* Результат ×5 — скролл */
 #resultCard .multi-list::-webkit-scrollbar { width: 4px; }
 #resultCard .multi-list::-webkit-scrollbar-thumb { background: #26263a; border-radius: 4px; }
+/* FIX: карточки ×5 */
+#resultCard .multi-list,
+#multiListWrap {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  max-height: 280px !important;
+  overflow-y: auto !important;
+  width: 100% !important;
+  padding: 4px !important;
+  margin: 10px 0 !important;
+}
+
+#multiListWrap .multi-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 10px 12px !important;
+  background: rgba(255,255,255,0.04) !important;
+  border: 1.5px solid rgba(142,142,147,0.5) !important;
+  border-radius: 12px !important;
+  min-height: 50px !important;
+  flex-shrink: 0 !important;
+}
+
+#multiListWrap .mi-flag { 
+  font-size: 22px !important; 
+  flex-shrink: 0 !important; 
+  display: inline-block !important;
+  line-height: 1 !important;
+}
+
+#multiListWrap .mi-info { 
+  flex: 1 !important; 
+  min-width: 0 !important; 
+  display: block !important;
+}
+
+#multiListWrap .mi-num { 
+  font-family: monospace !important;
+  font-size: 13px !important; 
+  font-weight: 800 !important; 
+  color: #fff !important; 
+  margin-bottom: 2px !important;
+  word-break: break-all !important;
+  display: block !important;
+}
+
+#multiListWrap .mi-meta { 
+  font-size: 10px !important; 
+  font-weight: 700 !important;
+  display: block !important;
+}
+
+#multiListWrap .mi-price { 
+  font-size: 12px !important; 
+  font-weight: 900 !important; 
+  color: #ffd60a !important; 
+  flex-shrink: 0 !important;
+}
+
+#multiListWrap .multi-item.rarity-common    { border-color: rgba(142,142,147,0.5) !important; }
+#multiListWrap .multi-item.rarity-rare      { border-color: rgba(52,199,89,0.6) !important; }
+#multiListWrap .multi-item.rarity-epic      { border-color: rgba(191,90,242,0.65) !important; }
+#multiListWrap .multi-item.rarity-mythic    { border-color: rgba(255,55,95,0.7) !important; }
+#multiListWrap .multi-item.rarity-legendary { border-color: rgba(255,214,10,0.75) !important; }
+#multiListWrap .multi-item.rarity-secret    { border-color: rgba(0,229,255,0.8) !important; }
+
+#multiListWrap .multi-item.is-highlight {
+  box-shadow: 0 0 0 2px rgba(255,214,10,0.7), 0 0 20px rgba(255,214,10,0.4) !important;
+}
