@@ -532,3 +532,64 @@ body::before{
 .trade-btn { flex: 1; padding: 8px; border: none; border-radius: 8px; font-size: 10px; font-weight: 900; cursor: pointer; text-transform: uppercase; }
 .trade-btn.accept { background: linear-gradient(135deg, #34c759, #30d158); color: #fff; }
 .trade-btn.decline { background: rgba(255,55,95,.2); color: #ff375f; border: 1px solid rgba(255,55,95,.4); }
+/* ============================================================
+   БОНУС НА ГЛАВНОМ ЭКРАНЕ
+   ============================================================ */
+.bonus-card-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, rgba(52,199,89,.15), rgba(48,209,88,.08));
+  border: 1.5px solid rgba(52,199,89,.4);
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+.bonus-card-main.ready {
+  box-shadow: 0 0 20px rgba(52,199,89,.35);
+  animation: bonusPulse 2s infinite;
+}
+.bonus-card-main .bonus-icon { font-size: 24px; flex-shrink: 0; }
+.bonus-card-main .bonus-info { flex: 1; min-width: 0; }
+.bonus-card-main .bonus-title { font-size: 12px; font-weight: 800; color: #fff; margin-bottom: 2px; }
+.bonus-card-main .bonus-sub { font-size: 10px; color: #6e6e85; font-weight: 700; }
+.bonus-card-main .bonus-btn {
+  padding: 8px 14px;
+  background: linear-gradient(135deg, #34c759, #30d158);
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  flex-shrink: 0;
+}
+.bonus-card-main .bonus-btn:disabled {
+  background: rgba(255,255,255,.08);
+  color: #6e6e85;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.bonus-card-main .bonus-btn:active:not(:disabled) { transform: scale(.96); }
+
+/* ============================================================
+   FIX: рулетка — плавная анимация без «проседания»
+   ============================================================ */
+.roulette-window {
+  height: 220px !important;
+}
+.reel-row {
+  height: 44px !important;
+  font-size: 13px !important;
+}
+.selector-line {
+  height: 44px !important;
+}
+.page-roulette {
+  overflow-y: auto !important;
+  padding-bottom: 20px !important;
+}
