@@ -43,7 +43,7 @@ function getCountry(code) {
 }
 
 // ============================================================
-// API CLIENT
+// API
 // ============================================================
 async function api(path, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
@@ -72,21 +72,14 @@ async function api(path, options = {}) {
 // ============================================================
 async function authenticate() {
   const tg = window.Telegram && window.Telegram.WebApp;
-  if (!tg || !tg.initData) {
-    throw new Error('Открой игру через бота');
-  }
+  if (!tg || !tg.initData) throw new Error('Открой игру через бота');
 
   const res = await fetch(API_BASE + '/api/auth', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ init_data: tg.initData })
   });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || 'Auth failed');
-  }
-
+  if (!res.ok) throw new Error('Auth failed');
   const data = await res.json();
   state.token = data.token;
   state.user = data.user;
@@ -95,14 +88,10 @@ async function authenticate() {
   localStorage.setItem(TOKEN_KEY, state.token);
 }
 
-// ============================================================
-// LOAD META
-// ============================================================
 async function loadMeta() {
   const res = await fetch(API_BASE + '/api/status', { cache: 'no-store' });
   if (!res.ok) throw new Error('Не удалось загрузить данные игры');
   state.meta = await res.json();
-
   if (state.meta.maintenance) {
     showMaintenance(state.meta.maintenance_text || 'Технические работы');
     return false;
@@ -110,9 +99,6 @@ async function loadMeta() {
   return true;
 }
 
-// ============================================================
-// LOAD PROFILE + INVENTORY
-// ============================================================
 async function loadProfile() {
   const me = await api('/api/me');
   state.user = me;
@@ -125,7 +111,6 @@ async function loadInventory() {
     const res = await api('/api/inventory');
     state.inventory = res.items || [];
   } catch (e) {
-    console.error('Inventory load failed:', e);
     state.inventory = [];
   }
 }
@@ -173,33 +158,25 @@ function fireworks(color) {
 // ============================================================
 function showMaintenance(text) {
   if ($('maintOverlay')) return;
-  const overlay = document.createElement('div');
-  overlay.id = 'maintOverlay';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:linear-gradient(160deg,#14141f,#0b0b12);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
-  overlay.innerHTML =
+  const o = document.createElement('div');
+  o.id = 'maintOverlay';
+  o.style.cssText = 'position:fixed;inset:0;z-index:99999;background:linear-gradient(160deg,#14141f,#0b0b12);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
+  o.innerHTML =
     '<div style="font-size:80px;margin-bottom:20px;">🛠</div>' +
     '<div style="font-size:24px;font-weight:900;margin-bottom:12px;">Технические работы</div>' +
     '<div style="font-size:15px;color:#6e6e85;font-weight:700;max-width:320px;line-height:1.5;">' + text + '</div>' +
     '<div style="font-size:13px;color:#3a3a4a;margin-top:30px;">Скоро вернёмся 👋</div>';
-  document.body.appendChild(overlay);
+  document.body.appendChild(o);
 }
 
 // ============================================================
 // UI UPDATE
 // ============================================================
 function updateUI() {
-  const balEl = $('balance');
-  if (balEl) balEl.textContent = fmt(state.balance) + ' ₽';
-
-  const spinsEl = $('spinCount');
-  if (spinsEl) spinsEl.textContent = fmt(state.spinsTotal);
-
-  const colEl = $('collectionCount');
-  if (colEl) colEl.textContent = state.inventory.length;
-
-  const tabInv = $('tabInvCount');
-  if (tabInv) tabInv.textContent = state.inventory.length;
-
+  const balEl = $('balance'); if (balEl) balEl.textContent = fmt(state.balance) + ' ₽';
+  const spinsEl = $('spinCount'); if (spinsEl) spinsEl.textContent = fmt(state.spinsTotal);
+  const colEl = $('collectionCount'); if (colEl) colEl.textContent = state.inventory.length;
+  const tabInv = $('tabInvCount'); if (tabInv) tabInv.textContent = state.inventory.length;
   updateSpinButtons();
   updateSellAllButton();
   updateSelectionBar();
@@ -208,19 +185,14 @@ function updateUI() {
 function updateSpinButtons() {
   if (!state.meta) return;
   const cost = state.meta.spin_costs[state.minRarity] || 350;
-  const p1 = $('spinBtnPrice');
-  const p5 = $('spinBtn5Price');
-  if (p1) p1.textContent = fmt(cost) + ' ₽';
-  if (p5) p5.textContent = fmt(cost * 5) + ' ₽';
+  const p1 = $('spinBtnPrice'); if (p1) p1.textContent = fmt(cost) + ' ₽';
+  const p5 = $('spinBtn5Price'); if (p5) p5.textContent = fmt(cost * 5) + ' ₽';
 }
 
 function updateSellAllButton() {
   const total = state.inventory.reduce((s, i) => s + i.price, 0);
-  const priceEl = $('sellAllPrice');
-  if (priceEl) priceEl.textContent = fmt(total) + ' ₽';
-
-  const btn = $('sellAllBtn');
-  const lbl = $('sellAllLabel');
+  const priceEl = $('sellAllPrice'); if (priceEl) priceEl.textContent = fmt(total) + ' ₽';
+  const btn = $('sellAllBtn'); const lbl = $('sellAllLabel');
   if (!btn) return;
   if (state.inventory.length === 0) {
     btn.disabled = true;
@@ -233,9 +205,7 @@ function updateSellAllButton() {
 
 function updateSelectionBar() {
   const alive = new Set(state.inventory.map(i => i.id));
-  for (const id of Array.from(state.selected)) {
-    if (!alive.has(id)) state.selected.delete(id);
-  }
+  for (const id of Array.from(state.selected)) if (!alive.has(id)) state.selected.delete(id);
 
   const bar = $('invSelectionBar');
   const btn = $('sellSelectedBtn');
@@ -259,13 +229,11 @@ function updateSelectionBar() {
 }
 
 // ============================================================
-// COUNTRY / OPERATOR SELECTORS
+// SELECTORS
 // ============================================================
 function renderCountrySelector() {
-  const wrap = $('countrySelector');
-  if (!wrap || !state.meta) return;
+  const wrap = $('countrySelector'); if (!wrap || !state.meta) return;
   wrap.innerHTML = '';
-
   state.meta.countries.forEach(c => {
     const el = document.createElement('div');
     el.className = 'country-chip' + (c.code === state.country ? ' active' : '');
@@ -284,10 +252,8 @@ function renderCountrySelector() {
 }
 
 function renderOperatorSelector() {
-  const wrap = $('operatorSelector');
-  if (!wrap || !state.meta) return;
+  const wrap = $('operatorSelector'); if (!wrap || !state.meta) return;
   wrap.innerHTML = '';
-
   const country = getCountry(state.country);
 
   const anyEl = document.createElement('div');
@@ -316,29 +282,27 @@ function renderOperatorSelector() {
 }
 
 // ============================================================
-// REELS (анимация)
+// REELS
 // ============================================================
 function randomDigit() { return String(Math.floor(Math.random() * 10)); }
 
 function fakePhone(country) {
   const code = country.code;
   const d = randomDigit;
-  let number = '';
-  if (code === 'RU') number = '+7 (9' + d() + d() + ') ' + d() + d() + d() + '-' + d() + d() + '-' + d() + d();
-  else if (code === 'US') number = '+1 (2' + d() + d() + ') ' + d() + d() + d() + '-' + d() + d() + d() + d();
-  else if (code === 'GB') number = '+44 7' + d() + d() + d() + ' ' + d() + d() + d() + ' ' + d() + d() + d();
-  else if (code === 'DE') number = '+49 15' + d() + ' ' + d() + d() + d() + d() + d() + d() + d();
-  else if (code === 'FR') number = '+33 6 ' + d() + d() + ' ' + d() + d() + ' ' + d() + d() + ' ' + d() + d();
-  else if (code === 'JP') number = '+81 90-' + d() + d() + d() + d() + '-' + d() + d() + d() + d();
-  else if (code === 'KR') number = '+82 10-' + d() + d() + d() + d() + '-' + d() + d() + d() + d();
-  else if (code === 'CN') number = '+86 13' + d() + ' ' + d() + d() + d() + d() + ' ' + d() + d() + d() + d();
-  else if (code === 'AE') number = '+971 5' + d() + ' ' + d() + d() + d() + ' ' + d() + d() + d() + d();
-  else if (code === 'BR') number = '+55 (11) 9' + d() + d() + d() + d() + '-' + d() + d() + d() + d();
-  else number = '+00 ' + d() + d() + d() + d() + d() + d() + d() + d();
-  return number;
+  if (code === 'RU') return '+7 (9' + d() + d() + ') ' + d() + d() + d() + '-' + d() + d() + '-' + d() + d();
+  if (code === 'US') return '+1 (2' + d() + d() + ') ' + d() + d() + d() + '-' + d() + d() + d() + d();
+  if (code === 'GB') return '+44 7' + d() + d() + d() + ' ' + d() + d() + d() + ' ' + d() + d() + d();
+  if (code === 'DE') return '+49 15' + d() + ' ' + d() + d() + d() + d() + d() + d() + d();
+  if (code === 'FR') return '+33 6 ' + d() + d() + ' ' + d() + d() + ' ' + d() + d() + ' ' + d() + d();
+  if (code === 'JP') return '+81 90-' + d() + d() + d() + d() + '-' + d() + d() + d() + d();
+  if (code === 'KR') return '+82 10-' + d() + d() + d() + d() + '-' + d() + d() + d() + d();
+  if (code === 'CN') return '+86 13' + d() + ' ' + d() + d() + d() + d() + ' ' + d() + d() + d() + d();
+  if (code === 'AE') return '+971 5' + d() + ' ' + d() + d() + d() + ' ' + d() + d() + d() + d();
+  if (code === 'BR') return '+55 (11) 9' + d() + d() + d() + d() + '-' + d() + d() + d() + d();
+  return '+00 ' + d() + d() + d() + d() + d() + d() + d() + d();
 }
 
-function makeReelRow(phone, real = false) {
+function makeReelRow(phone) {
   const row = document.createElement('div');
   row.className = 'reel-row';
   const r = getRarity(phone.rarity || 'common');
@@ -358,13 +322,11 @@ function makeReelRow(phone, real = false) {
   row.appendChild(text);
   row.appendChild(op);
   row.dataset.color = r.color;
-  row.dataset.real = real ? '1' : '0';
   return row;
 }
 
 function renderStaticReels() {
-  const reels = $('reels');
-  if (!reels) return;
+  const reels = $('reels'); if (!reels) return;
   reels.innerHTML = '';
   reels.style.transition = 'none';
   reels.style.transform = 'translateY(0)';
@@ -377,34 +339,12 @@ function renderStaticReels() {
       operator_code: '',
       rarity: 'common'
     };
-    const row = makeReelRow(fake, false);
+    const row = makeReelRow(fake);
     row.style.color = '#3a3a52';
     reels.appendChild(row);
   }
   const rows = reels.children;
-  if (rows[2]) {
-    rows[2].classList.add('center');
-    rows[2].style.color = '#6a6a80';
-  }
-}
-
-function buildAnimationStrip(finalPhone, highlightIndex, totalItems) {
-  const country = getCountry(state.country);
-  const strip = [];
-  for (let i = 0; i < totalItems; i++) {
-    if (i === highlightIndex) {
-      strip.push({ ...finalPhone, _real: true });
-    } else {
-      strip.push({
-        number: fakePhone(country),
-        country_flag: country.flag,
-        operator_code: '',
-        rarity: 'common',
-        _real: false
-      });
-    }
-  }
-  return strip;
+  if (rows[2]) { rows[2].classList.add('center'); rows[2].style.color = '#6a6a80'; }
 }
 
 function animateReels(strip, highlightIndex, duration, onDone) {
@@ -412,17 +352,14 @@ function animateReels(strip, highlightIndex, duration, onDone) {
   reels.innerHTML = '';
   reels.style.transition = 'none';
   reels.style.transform = 'translateY(0)';
-
-  strip.forEach(p => reels.appendChild(makeReelRow(p, p._real)));
+  strip.forEach(p => reels.appendChild(makeReelRow(p)));
 
   const rowHeight = 64;
   const paddingTop = 8;
   const windowH = $('rouletteWindow').clientHeight;
   const centerOffset = windowH / 2 - rowHeight / 2 - paddingTop;
-
   const startY = centerOffset;
   const endY = centerOffset - highlightIndex * rowHeight;
-
   reels.style.transform = 'translateY(' + startY + 'px)';
 
   const rows = reels.children;
@@ -449,11 +386,26 @@ function animateReels(strip, highlightIndex, duration, onDone) {
         row.style.textShadow = '';
       }
     }
-
     if (t < 1) requestAnimationFrame(frame);
     else onDone();
   }
   requestAnimationFrame(frame);
+}
+
+function buildAnimationStrip(finalPhone, highlightIndex, totalItems) {
+  const country = getCountry(state.country);
+  const strip = [];
+  for (let i = 0; i < totalItems; i++) {
+    if (i === highlightIndex) strip.push({ ...finalPhone, _real: true });
+    else strip.push({
+      number: fakePhone(country),
+      country_flag: country.flag,
+      operator_code: '',
+      rarity: 'common',
+      _real: false
+    });
+  }
+  return strip;
 }
 
 // ============================================================
@@ -462,10 +414,7 @@ function animateReels(strip, highlightIndex, duration, onDone) {
 async function spinOne() {
   if (state.spinning) return;
   const cost = state.meta.spin_costs[state.minRarity] || 350;
-  if (state.balance < cost) {
-    showToast('❌ Недостаточно средств', '#ff375f');
-    return;
-  }
+  if (state.balance < cost) { showToast('❌ Недостаточно средств', '#ff375f'); return; }
 
   state.spinning = true;
   state.balance -= cost;
@@ -484,7 +433,6 @@ async function spinOne() {
         min_rarity: state.minRarity
       })
     });
-
     state.balance = res.balance;
     state.spinsTotal = res.spins_total;
     updateUI();
@@ -493,7 +441,6 @@ async function spinOne() {
     const totalItems = 40;
     const centerIndex = totalItems - 3;
     const strip = buildAnimationStrip(finalPhone, centerIndex, totalItems);
-
     animateReels(strip, centerIndex, 3800, () => finishSpinSingle(finalPhone));
   } catch (e) {
     state.balance += cost;
@@ -508,13 +455,10 @@ async function spinOne() {
 
 function finishSpinSingle(phone) {
   const r = getRarity(phone.rarity);
-
   $('rouletteWindow').className = 'roulette-window rarity-' + phone.rarity;
-
   $('resultRarity').textContent = r.name;
   $('resultRarity').style.color = r.color;
   $('resultRarity').style.textShadow = '0 0 20px ' + r.color;
-
   $('resultFlag').textContent = phone.country_flag;
   $('resultNumber').textContent = phone.number;
   $('resultNumber').style.color = r.color;
@@ -528,12 +472,9 @@ function finishSpinSingle(phone) {
   state.pending = { phones: [phone], multi: false };
   $('resultCard').classList.add('show');
 
-  if (phone.rarity === 'legendary' || phone.rarity === 'secret') {
-    fireworks(r.color);
-  } else if (phone.rarity === 'mythic') {
+  if (phone.rarity === 'legendary' || phone.rarity === 'secret' || phone.rarity === 'mythic') {
     fireworks(r.color);
   }
-
   state.spinning = false;
   $('spinBtn').disabled = false;
   $('spinBtn5').disabled = false;
@@ -545,10 +486,7 @@ function finishSpinSingle(phone) {
 async function spinFive() {
   if (state.spinning) return;
   const cost = (state.meta.spin_costs[state.minRarity] || 350) * 5;
-  if (state.balance < cost) {
-    showToast('❌ Недостаточно средств', '#ff375f');
-    return;
-  }
+  if (state.balance < cost) { showToast('❌ Недостаточно средств', '#ff375f'); return; }
 
   state.spinning = true;
   state.balance -= cost;
@@ -567,18 +505,15 @@ async function spinFive() {
         min_rarity: state.minRarity
       })
     });
-
     state.balance = res.balance;
     state.spinsTotal = res.spins_total;
     updateUI();
 
     const phones = res.phones;
     const highlightPhone = phones[phones.length - 1];
-
     const totalItems = 30;
     const centerIndex = totalItems - 3;
     const strip = buildAnimationStrip(highlightPhone, centerIndex, totalItems);
-
     animateReels(strip, centerIndex, 2800, () => finishSpinFive(phones, highlightPhone));
   } catch (e) {
     state.balance += cost;
@@ -600,11 +535,9 @@ function finishSpinFive(phones, highlightPhone) {
   const hlRarity = getRarity(highlightPhone.rarity);
 
   $('rouletteWindow').className = 'roulette-window rarity-' + highlightPhone.rarity;
-
   $('resultRarity').textContent = 'Результат ×5';
   $('resultRarity').style.color = hlRarity.color;
   $('resultRarity').style.textShadow = '0 0 20px ' + hlRarity.color;
-
   $('resultFlag').textContent = '🎁';
   $('resultNumber').textContent = '';
   $('resultOperator').textContent = '';
@@ -612,14 +545,10 @@ function finishSpinFive(phones, highlightPhone) {
 
   const totalSum = phones.reduce((s, p) => s + p.price, 0);
   $('resultDesc').textContent = 'Все 5: ' + fmt(totalSum) + ' ₽';
-
   $('resultActions').style.display = 'none';
 
   state.multiSelected.clear();
-  phones.forEach((p, i) => {
-    p._idx = i;
-    state.multiSelected.add(i);
-  });
+  phones.forEach((p, i) => { p._idx = i; state.multiSelected.add(i); });
 
   state.pending = { phones, multi: true };
   renderMultiListSelectable(sorted, highlightPhone);
@@ -627,7 +556,6 @@ function finishSpinFive(phones, highlightPhone) {
   if (topRarity === 'legendary' || topRarity === 'secret' || topRarity === 'mythic') {
     fireworks(getRarity(topRarity).color);
   }
-
   state.spinning = false;
   $('spinBtn').disabled = false;
   $('spinBtn5').disabled = false;
@@ -635,7 +563,7 @@ function finishSpinFive(phones, highlightPhone) {
 }
 
 // ============================================================
-// MULTI-RESULT LIST (×5)
+// MULTI LIST (×5) — INLINE СТИЛИ
 // ============================================================
 function removeMultiList() {
   const el = document.getElementById('multiListWrap');
@@ -649,12 +577,22 @@ function renderMultiListSelectable(sortedPhones, highlightPhone) {
 
   const wrap = document.createElement('div');
   wrap.id = 'multiListWrap';
-  wrap.className = 'multi-list';
-  wrap.style.maxHeight = '260px';
+  wrap.style.cssText = [
+    'width:100%',
+    'max-width:100%',
+    'display:flex',
+    'flex-direction:column',
+    'gap:8px',
+    'margin:14px 0',
+    'padding:4px',
+    'max-height:260px',
+    'overflow-y:auto',
+    'box-sizing:border-box'
+  ].join(';');
 
   const head = document.createElement('div');
   head.id = 'multiHead';
-  head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(10,132,255,.12);border:1.5px solid rgba(10,132,255,.4);border-radius:12px;margin-bottom:6px;flex-shrink:0;';
+  head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(10,132,255,.15);border:1.5px solid rgba(10,132,255,.5);border-radius:12px;flex-shrink:0;';
   head.innerHTML =
     '<span id="multiHeadCount" style="font-size:12px;font-weight:800;color:#fff;">Выбрано</span>' +
     '<span id="multiHeadSum" style="font-size:13px;font-weight:900;color:#ffd60a;">0 ₽</span>';
@@ -668,22 +606,64 @@ function renderMultiListSelectable(sortedPhones, highlightPhone) {
     const isSel = state.multiSelected.has(p._idx);
 
     const item = document.createElement('div');
-    item.className = 'multi-item rarity-' + p.rarity + (isHl ? ' is-highlight' : '');
-    item.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;';
-    item.innerHTML =
-      '<div style="width:22px;height:22px;border-radius:50%;border:2px solid ' + (isSel ? '#0a84ff' : 'rgba(255,255,255,.3)') + ';background:' + (isSel ? '#0a84ff' : 'rgba(0,0,0,.3)') + ';display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;font-weight:900;color:' + (isSel ? '#fff' : 'transparent') + ';">✓</div>' +
-      '<span class="mi-flag" style="font-size:22px;flex-shrink:0;">' + (p.country_flag || '🌍') + '</span>' +
-      '<div class="mi-info" style="flex:1;min-width:0;">' +
-        '<div class="mi-num" style="font-family:monospace;font-size:13px;font-weight:800;color:#fff;margin-bottom:2px;word-break:break-all;">' + p.number + '</div>' +
-        '<div class="mi-meta" style="font-size:10px;color:' + r.color + ';font-weight:700;">' + r.name + ' · ' + p.operator_name + (isHl ? ' · ⭐' : '') + '</div>' +
-      '</div>' +
-      '<div class="mi-price" style="font-size:12px;font-weight:900;color:#ffd60a;flex-shrink:0;">' + fmt(p.price) + ' ₽</div>';
+    item.style.cssText = [
+      'display:flex',
+      'align-items:center',
+      'gap:10px',
+      'padding:10px 12px',
+      'background:rgba(255,255,255,0.05)',
+      'border:1.5px solid ' + r.color,
+      'border-radius:12px',
+      'cursor:pointer',
+      'flex-shrink:0',
+      'box-sizing:border-box',
+      'min-height:52px'
+    ].join(';');
+    if (isHl) item.style.boxShadow = '0 0 0 2px rgba(255,214,10,.7), 0 0 20px rgba(255,214,10,.4)';
+
+    const check = document.createElement('div');
+    check.style.cssText = [
+      'width:22px', 'height:22px', 'border-radius:50%',
+      'border:2px solid ' + (isSel ? '#0a84ff' : 'rgba(255,255,255,.4)'),
+      'background:' + (isSel ? '#0a84ff' : 'rgba(0,0,0,.4)'),
+      'display:flex', 'align-items:center', 'justify-content:center',
+      'flex-shrink:0', 'font-size:13px', 'font-weight:900',
+      'color:' + (isSel ? '#fff' : 'transparent'), 'line-height:1'
+    ].join(';');
+    check.textContent = '✓';
+    item.appendChild(check);
+
+    const flag = document.createElement('span');
+    flag.style.cssText = 'font-size:22px;flex-shrink:0;line-height:1;';
+    flag.textContent = p.country_flag || '🌍';
+    item.appendChild(flag);
+
+    const info = document.createElement('div');
+    info.style.cssText = 'flex:1;min-width:0;';
+
+    const num = document.createElement('div');
+    num.style.cssText = 'font-family:SF Mono,Roboto Mono,monospace;font-size:13px;font-weight:800;color:#fff;margin-bottom:2px;word-break:break-all;line-height:1.3;';
+    num.textContent = p.number;
+    info.appendChild(num);
+
+    const meta = document.createElement('div');
+    meta.style.cssText = 'font-size:10px;font-weight:700;color:' + r.color + ';';
+    meta.textContent = r.name + ' · ' + (p.operator_name || '') + (isHl ? ' · ⭐' : '');
+    info.appendChild(meta);
+
+    item.appendChild(info);
+
+    const price = document.createElement('div');
+    price.style.cssText = 'font-size:12px;font-weight:900;color:#ffd60a;flex-shrink:0;white-space:nowrap;';
+    price.textContent = fmt(p.price) + ' ₽';
+    item.appendChild(price);
 
     item.addEventListener('click', () => {
       if (state.multiSelected.has(p._idx)) state.multiSelected.delete(p._idx);
       else state.multiSelected.add(p._idx);
       renderMultiListSelectable(sortedPhones, highlightPhone);
     });
+
     wrap.appendChild(item);
   });
 
@@ -692,7 +672,7 @@ function renderMultiListSelectable(sortedPhones, highlightPhone) {
 
   const actions = document.createElement('div');
   actions.id = 'multiActions';
-  actions.style.cssText = 'display:flex;flex-direction:column;gap:8px;width:100%;max-width:340px;margin-top:10px;';
+  actions.style.cssText = 'display:flex;flex-direction:column;gap:8px;width:100%;max-width:340px;margin-top:10px;flex-shrink:0;';
 
   const btnKeep = document.createElement('button');
   btnKeep.className = 'result-btn keep';
@@ -727,7 +707,6 @@ function updateMultiHead() {
   const head = document.getElementById('multiHeadCount');
   const sumEl = document.getElementById('multiHeadSum');
   if (!head || !sumEl || !state.pending) return;
-
   let sum = 0, count = 0;
   state.pending.phones.forEach(p => {
     if (state.multiSelected.has(p._idx)) { sum += p.price; count++; }
@@ -740,20 +719,15 @@ function updateMultiButtons() {
   const keep = document.getElementById('multiKeep');
   const sellSel = document.getElementById('multiSellSel');
   if (!keep || !sellSel) return;
-
   const count = state.multiSelected.size;
   if (count === 0) {
-    keep.disabled = true;
-    keep.style.opacity = '0.4';
-    sellSel.disabled = true;
-    sellSel.style.opacity = '0.4';
+    keep.disabled = true; keep.style.opacity = '0.4';
+    sellSel.disabled = true; sellSel.style.opacity = '0.4';
     keep.textContent = '📦 Выбранные в инвентарь';
     sellSel.textContent = '💵 Продать выбранные';
   } else {
-    keep.disabled = false;
-    keep.style.opacity = '1';
-    sellSel.disabled = false;
-    sellSel.style.opacity = '1';
+    keep.disabled = false; keep.style.opacity = '1';
+    sellSel.disabled = false; sellSel.style.opacity = '1';
     keep.textContent = '📦 Выбранные в инвентарь (' + count + ')';
     sellSel.textContent = '💵 Продать выбранные (' + count + ')';
   }
@@ -766,87 +740,68 @@ async function handleMultiKeep() {
   if (!state.pending || !state.pending.multi) return;
   const toKeep = state.pending.phones.filter(p => state.multiSelected.has(p._idx));
   if (!toKeep.length) return;
-
   try {
     await api('/api/inventory/keep', {
       method: 'POST',
       body: JSON.stringify({ phones: toKeep })
     });
-
     showToast('📦 +' + toKeep.length + ' в инвентарь', '#0a84ff');
-
     state.pending.phones = state.pending.phones.filter(p => !state.multiSelected.has(p._idx));
     state.pending.phones.forEach((p, i) => { p._idx = i; });
     state.multiSelected.clear();
     state.pending.phones.forEach(p => state.multiSelected.add(p._idx));
-
     await loadInventory();
     updateUI();
-
-    if (state.pending.phones.length === 0) {
-      closeResult();
-    } else {
+    if (state.pending.phones.length === 0) closeResult();
+    else {
       const order = {};
       state.meta.rarity_order.forEach((k, i) => { order[k] = i; });
       const sorted = state.pending.phones.slice().sort((a, b) => order[b.rarity] - order[a.rarity]);
       renderMultiListSelectable(sorted, null);
     }
-  } catch (e) {
-    showToast('❌ ' + e.message, '#ff375f');
-  }
+  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
 }
 
 async function handleMultiSellSelected() {
   if (!state.pending || !state.pending.multi) return;
   const toSell = state.pending.phones.filter(p => state.multiSelected.has(p._idx));
   if (!toSell.length) return;
-
   try {
     const res = await api('/api/sell-immediate', {
       method: 'POST',
       body: JSON.stringify({ phones: toSell })
     });
-
     state.balance = res.balance;
     updateUI();
     showToast('💵 +' + fmt(res.total) + ' ₽ (' + toSell.length + ')', '#34c759');
-
     state.pending.phones = state.pending.phones.filter(p => !state.multiSelected.has(p._idx));
     state.pending.phones.forEach((p, i) => { p._idx = i; });
     state.multiSelected.clear();
     state.pending.phones.forEach(p => state.multiSelected.add(p._idx));
-
-    if (state.pending.phones.length === 0) {
-      closeResult();
-    } else {
+    if (state.pending.phones.length === 0) closeResult();
+    else {
       const order = {};
       state.meta.rarity_order.forEach((k, i) => { order[k] = i; });
       const sorted = state.pending.phones.slice().sort((a, b) => order[b.rarity] - order[a.rarity]);
       renderMultiListSelectable(sorted, null);
     }
-  } catch (e) {
-    showToast('❌ ' + e.message, '#ff375f');
-  }
+  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
 }
 
 async function handleMultiSellAll() {
   if (!state.pending || !state.pending.multi) return;
   const phones = state.pending.phones;
-
   try {
     const res = await api('/api/sell-immediate', {
       method: 'POST',
       body: JSON.stringify({ phones })
     });
-
     state.balance = res.balance;
     updateUI();
     showToast('💵 +' + fmt(res.total) + ' ₽ (' + phones.length + ')', '#34c759');
     state.multiSelected.clear();
     closeResult();
-  } catch (e) {
-    showToast('❌ ' + e.message, '#ff375f');
-  }
+  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
 }
 
 // ============================================================
@@ -864,9 +819,7 @@ async function handleKeepAll() {
     await loadInventory();
     updateUI();
     closeResult();
-  } catch (e) {
-    showToast('❌ ' + e.message, '#ff375f');
-  }
+  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
 }
 
 async function handleSellAll() {
@@ -881,9 +834,7 @@ async function handleSellAll() {
     updateUI();
     showToast('💵 +' + fmt(res.total) + ' ₽', '#34c759');
     closeResult();
-  } catch (e) {
-    showToast('❌ ' + e.message, '#ff375f');
-  }
+  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
 }
 
 function closeResult() {
@@ -898,10 +849,8 @@ function closeResult() {
 // RARITY OPTIONS
 // ============================================================
 function renderRarityOptions() {
-  const wrap = $('rarityOptions');
-  if (!wrap || !state.meta) return;
+  const wrap = $('rarityOptions'); if (!wrap || !state.meta) return;
   wrap.innerHTML = '';
-
   state.meta.rarity_filters.forEach(key => {
     const r = getRarity(key);
     const cost = state.meta.spin_costs[key];
@@ -928,19 +877,15 @@ function renderRarityOptions() {
 // INVENTORY
 // ============================================================
 function renderInventoryFilters() {
-  const wrap = $('invFilters');
-  if (!wrap || !state.meta) return;
+  const wrap = $('invFilters'); if (!wrap || !state.meta) return;
   wrap.innerHTML = '';
-
   const counts = { all: state.inventory.length };
   state.meta.rarity_order.forEach(k => {
     counts[k] = state.inventory.filter(i => i.rarity === k).length;
   });
-
   const filters = [{ key: 'all', name: 'Все' }].concat(
     state.meta.rarity_order.map(k => ({ key: k, name: getRarity(k).name }))
   );
-
   filters.forEach(f => {
     const el = document.createElement('div');
     el.className = 'filter-chip' + (state.invFilter === f.key ? ' active' : '');
@@ -958,15 +903,11 @@ function renderInventory() {
   renderInventoryFilters();
   updateSellAllButton();
   updateSelectionBar();
-
-  const grid = $('invGrid');
-  if (!grid) return;
+  const grid = $('invGrid'); if (!grid) return;
   grid.innerHTML = '';
-
   const items = state.invFilter === 'all'
     ? state.inventory
     : state.inventory.filter(i => i.rarity === state.invFilter);
-
   if (items.length === 0) {
     grid.innerHTML =
       '<div class="empty-state">' +
@@ -976,7 +917,6 @@ function renderInventory() {
       '</div>';
     return;
   }
-
   items.forEach(item => {
     const r = getRarity(item.rarity);
     const isSel = state.selected.has(item.id);
@@ -996,7 +936,6 @@ function renderInventory() {
         '<span>' + fmt(item.price) + ' ₽</span>' +
         '<span class="sell-hint">' + (isSel ? '✓ выбран' : 'выбрать') + '</span>' +
       '</div>';
-
     card.addEventListener('click', () => toggleSelect(item.id));
     grid.appendChild(card);
   });
@@ -1013,9 +952,6 @@ function clearSelection() {
   renderInventory();
 }
 
-// ============================================================
-// SELL
-// ============================================================
 async function sellSelectedFromInventory() {
   if (state.selected.size === 0) return;
   const ids = Array.from(state.selected);
@@ -1030,9 +966,7 @@ async function sellSelectedFromInventory() {
     await loadInventory();
     updateUI();
     renderInventory();
-  } catch (e) {
-    showToast('❌ ' + e.message, '#ff375f');
-  }
+  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
 }
 
 async function sellAllFromInventory() {
@@ -1045,17 +979,14 @@ async function sellAllFromInventory() {
     await loadInventory();
     updateUI();
     renderInventory();
-  } catch (e) {
-    showToast('❌ ' + e.message, '#ff375f');
-  }
+  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
 }
 
 // ============================================================
 // PROMO
 // ============================================================
 function togglePromoBar() {
-  const bar = $('promoBar');
-  if (!bar) return;
+  const bar = $('promoBar'); if (!bar) return;
   bar.classList.toggle('open');
   if (bar.classList.contains('open')) {
     setTimeout(() => { const i = $('promoInput'); if (i) i.focus(); }, 100);
@@ -1063,24 +994,19 @@ function togglePromoBar() {
 }
 
 async function activatePromo() {
-  const input = $('promoInput');
-  if (!input) return;
+  const input = $('promoInput'); if (!input) return;
   const code = input.value.trim().toUpperCase();
-
   if (!code) { showToast('❌ Введите код', '#ff375f'); return; }
-
   if (state.usedPromos.has(code)) {
     showToast('⚠️ Уже использован', '#ffd60a');
     input.value = '';
     return;
   }
-
   try {
     const res = await api('/api/promo/activate', {
       method: 'POST',
       body: JSON.stringify({ code })
     });
-
     state.usedPromos.add(code);
     state.balance = res.balance;
     $('balance').classList.add('flash');
@@ -1089,7 +1015,6 @@ async function activatePromo() {
     showToast('🎉 Промокод: +' + fmt(res.amount) + ' ₽', '#34c759');
     input.value = '';
     updateUI();
-
     setTimeout(() => { const b = $('promoBar'); if (b) b.classList.remove('open'); }, 1000);
   } catch (e) {
     showToast('❌ ' + e.message, '#ff375f');
@@ -1109,10 +1034,8 @@ function setupTabs() {
       document.querySelectorAll('.page').forEach(p => {
         p.classList.toggle('active', p.id === 'page-' + target);
       });
-
       const controlsSpin = $('controls');
       const controlsInv = $('controlsInv');
-
       if (target === 'inventory') {
         if (controlsSpin) controlsSpin.style.display = 'none';
         if (controlsInv) controlsInv.style.display = 'flex';
@@ -1139,11 +1062,8 @@ async function init() {
     if (!state.token) {
       await authenticate();
     } else {
-      try {
-        await loadProfile();
-      } catch (e) {
-        await authenticate();
-      }
+      try { await loadProfile(); }
+      catch (e) { await authenticate(); }
     }
 
     await loadInventory();
@@ -1170,9 +1090,7 @@ async function init() {
     if (promoBtn) promoBtn.addEventListener('click', activatePromo);
     const promoInput = $('promoInput');
     if (promoInput) {
-      promoInput.addEventListener('keydown', e => {
-        if (e.key === 'Enter') activatePromo();
-      });
+      promoInput.addEventListener('keydown', e => { if (e.key === 'Enter') activatePromo(); });
     }
 
     console.log('✅ App initialized (API mode)');
@@ -1192,9 +1110,7 @@ async function boot() {
         return;
       }
     }
-  } catch (e) {
-    console.log('Status check failed:', e);
-  }
+  } catch (e) { console.log('Status check failed:', e); }
   await init();
 }
 
