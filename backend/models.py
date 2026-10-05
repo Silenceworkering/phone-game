@@ -23,6 +23,9 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     is_owner = Column(Boolean, default=False)
 
+    # Ежедневный бонус
+    last_bonus_at = Column(DateTime, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     last_seen = Column(DateTime, default=datetime.utcnow)
 
@@ -86,28 +89,46 @@ class SpinLog(Base):
     cost = Column(Integer, default=0)
     country_code = Column(String(8))
     operator_code = Column(String(16))
-    is_multi = Column(Boolean, default=False)   # было ли это частью x5
+    is_multi = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Inventory(Base):
-    """
-    Инвентарь игрока — все номера, которые он сохранил.
-    Номера из круток попадают сюда только если игрок нажал "В инвентарь".
-    """
+    """Инвентарь игрока."""
     __tablename__ = "inventory"
 
     id = Column(Integer, primary_key=True)
     telegram_id = Column(BigInteger, nullable=False, index=True)
-
     number = Column(String(64), nullable=False)
     rarity = Column(String(32), nullable=False, index=True)
     price = Column(Integer, default=0)
-
     country_code = Column(String(8))
     country_flag = Column(String(16))
     country_name = Column(String(64))
     operator_code = Column(String(16))
     operator_name = Column(String(64))
-
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Achievement(Base):
+    """Полученные достижения игроков."""
+    __tablename__ = "achievements"
+
+    id = Column(Integer, primary_key=True)
+    telegram_id = Column(BigInteger, nullable=False, index=True)
+    code = Column(String(64), nullable=False, index=True)
+    got_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Trade(Base):
+    """Обмен между игроками."""
+    __tablename__ = "trades"
+
+    id = Column(Integer, primary_key=True)
+    from_tg_id = Column(BigInteger, nullable=False, index=True)
+    to_tg_id = Column(BigInteger, nullable=False, index=True)
+    from_inv_id = Column(Integer, nullable=False)     # ID из inventory
+    to_inv_id = Column(Integer, nullable=False)       # ID из inventory
+    status = Column(String(16), default="pending")    # pending/accepted/declined/cancelled
+    created_at = Column(DateTime, default=datetime.utcnow)
+    resolved_at = Column(DateTime, nullable=True)
