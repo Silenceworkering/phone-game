@@ -301,3 +301,34 @@ def get_countries_for_frontend():
 def get_spin_costs():
     """Стоимости крутки по редкостям."""
     return dict(SPIN_COSTS)
+
+
+# ============ ДОСТИЖЕНИЯ ============
+ACHIEVEMENTS = {
+    "first_spin":       {"name": "🎰 Первый спин",         "desc": "Прокрутил первый раз",           "reward": 500},
+    "spins_10":         {"name": "🎯 10 спинов",           "desc": "Прокрутил 10 раз",               "reward": 1000},
+    "spins_100":        {"name": "🔥 100 спинов",          "desc": "Прокрутил 100 раз",              "reward": 5000},
+    "spins_1000":       {"name": "💫 1000 спинов",         "desc": "Прокрутил 1000 раз",             "reward": 25000},
+    "first_rare":       {"name": "🌿 Редкий номер",        "desc": "Первый редкий номер",            "reward": 500},
+    "first_epic":       {"name": "💜 Эпический номер",     "desc": "Первый эпический номер",         "reward": 2000},
+    "first_mythic":     {"name": "🔥 Мифический номер",    "desc": "Первый мифический номер",        "reward": 10000},
+    "first_legendary":  {"name": "👑 Легендарный номер",   "desc": "Первый легендарный номер",       "reward": 50000},
+    "first_secret":     {"name": "🤫 Секретный номер",     "desc": "Первый секретный номер",         "reward": 250000},
+    "inv_10":           {"name": "📦 10 в коллекции",      "desc": "10 номеров в инвентаре",         "reward": 1000},
+    "inv_50":           {"name": "📦 50 в коллекции",      "desc": "50 номеров в инвентаре",         "reward": 5000},
+    "inv_100":          {"name": "📦 100 в коллекции",     "desc": "100 номеров в инвентаре",        "reward": 20000},
+    "balance_100k":     {"name": "💰 100k",                "desc": "Баланс 100 000 ₽",               "reward": 10000},
+    "balance_1m":       {"name": "💎 Миллионер",           "desc": "Баланс 1 000 000 ₽",             "reward": 100000},
+    "all_countries":    {"name": "🌍 Все страны",          "desc": "Номера всех 10 стран",           "reward": 50000},
+}
+
+
+# ============ КРАФТ ============
+# 3 редкости -> 1 выше
+CRAFT_RULES = {
+    "common":    {"need": 5,  "cost": 500,   "produces": "rare"},
+    "rare":      {"need": 5,  "cost": 2000,  "produces": "epic"},
+    "epic":      {"need": 5,  "cost": 5000,  "produces": "mythic"},
+    "mythic":    {"need": 5,  "cost": 30000, "produces": "legendary"},
+    "legendary": {"need": 3,  "cost": 150000, "produces": "secret"},
+}
