@@ -307,3 +307,102 @@ def stats(admin: Admin = Depends(get_current_admin), db: Session = Depends(get_d
         "total_balance": total_balance,
         "maintenance": get_setting(db, "maintenance", "0") == "1",
     }
+
+
+# ============================================================
+# ЛОГИ КРУТОК
+# ============================================================
+@router.get("/api/spins")
+def list_spins(
+    q: str = "",
+    rarity: str = "",
+    limit: int = 100,
+    offset: int = 0,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Список круток с фильтрами."""
+    query = db.query(SpinLog, User).outerjoin(
+        User, User.telegram_id == SpinLog.telegram_id
+    )
+
+    if rarity:
+        query = query.filter(SpinLog.rarity == rarity)
+
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            (SpinLog.number.ilike(like))
+            | (User.first_name.ilike(like))
+            | (User.username.ilike(like))
+        )
+
+    total = query.count()
+    rows = query.order_by(SpinLog.created_at.desc()).offset(offset).limit(limit).all()
+
+    return {
+        "total": total,
+        "spins": [
+            {
+                "id": s.id,
+                "telegram_id": s.telegram_id,
+                "first_name": u.first_name if u else "",
+                "username": u.username if u else "",
+                "rarity": s.rarity,
+                "number": s.number,
+                "price": s.price,
+                "cost": s.cost,
+                "country_code": s.country_code,
+                "operator_code": s.operator_code,
+                "is_multi": s.is_multi,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+            }
+            for s, u in rows
+        ],
+    }
+
+
+# ============================================================
+# РАССЫЛКА
+# ============================================================
+@router.get("/api/broadcast/info")
+def broadcast_info(
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    count = db.query(func.count(User.id)).filter(User.is_banned == False).scalar() or 0
+    return {"users_count": count}
+
+
+@router.post("/api/broadcast")
+async def broadcast(
+    payload: dict = Body(...),
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Отправка сообщения всем незабаненным игрокам через бота."""
+    text = (payload.get("text") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Текст пустой")
+    if len(text) > 4000:
+        raise HTTPException(status_code=400, detail="Слишком длинное сообщение")
+
+    from .bot import bot
+    if not bot:
+        raise HTTPException(status_code=500, detail="BOT_TOKEN не задан")
+
+    users = db.query(User).filter(User.is_banned == False).all()
+
+    sent = 0
+    failed = 0
+    for u in users:
+        try:
+            await bot.send_message(u.telegram_id, text, parse_mode="HTML")
+            sent += 1
+        except Exception as e:
+            failed += 1
+            # Если юзер заблокировал бота — не падаем
+        # Небольшая задержка чтобы не превысить лимиты Telegram
+        await asyncio.sleep(0.05)
+
+    return {"success": True, "sent": sent, "failed": failed}
