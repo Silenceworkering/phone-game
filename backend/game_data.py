@@ -1,60 +1,40 @@
 """
 Игровые данные: редкости, страны, операторы.
-Один источник правды — всё на сервере.
 """
 import random
 from typing import Optional, Dict, Any
 
 
 # ============ РЕДКОСТИ ============
-# Веса уменьшены для редких редкостей — теперь их сложнее выбить
 RARITIES = {
     "common": {
-        "key": "common",
-        "name": "Обычный",
-        "color": "#8e8e93",
-        "weight": 68,          # было 55 — стало легче выбить обычные
-        "base_price": 250,     # было 350 — цена номера снижена
+        "key": "common", "name": "Обычный", "color": "#8e8e93",
+        "weight": 68, "base_price": 250,
         "desc": "Обычный номер. Начало коллекции.",
     },
     "rare": {
-        "key": "rare",
-        "name": "Редкий",
-        "color": "#34c759",
-        "weight": 20,          # было 26
-        "base_price": 1100,
+        "key": "rare", "name": "Редкий", "color": "#34c759",
+        "weight": 20, "base_price": 1100,
         "desc": "Редкий номер! Уже интересно.",
     },
     "epic": {
-        "key": "epic",
-        "name": "Эпический",
-        "color": "#bf5af2",
-        "weight": 8.5,         # было 13
-        "base_price": 3200,
+        "key": "epic", "name": "Эпический", "color": "#bf5af2",
+        "weight": 8.5, "base_price": 3200,
         "desc": "Эпический номер! Впечатляет.",
     },
     "mythic": {
-        "key": "mythic",
-        "name": "Мифический",
-        "color": "#ff375f",
-        "weight": 2.8,         # было 5
-        "base_price": 22000,
+        "key": "mythic", "name": "Мифический", "color": "#ff375f",
+        "weight": 2.8, "base_price": 22000,
         "desc": "Мифический номер! Таких единицы.",
     },
     "legendary": {
-        "key": "legendary",
-        "name": "Легендарный",
-        "color": "#ffd60a",
-        "weight": 0.6,         # было 1
-        "base_price": 75000,
+        "key": "legendary", "name": "Легендарный", "color": "#ffd60a",
+        "weight": 0.6, "base_price": 75000,
         "desc": "ЛЕГЕНДАРНЫЙ! Невероятная удача!",
     },
     "secret": {
-        "key": "secret",
-        "name": "СЕКРЕТНЫЙ",
-        "color": "#00e5ff",
-        "weight": 0.1,         # было 0.15 — вообще редкость
-        "base_price": 450000,
+        "key": "secret", "name": "СЕКРЕТНЫЙ", "color": "#00e5ff",
+        "weight": 0.1, "base_price": 450000,
         "desc": "🤫 СЕКРЕТ! Ты нашёл невозможное...",
     },
 }
@@ -62,17 +42,16 @@ RARITIES = {
 RARITY_ORDER = ["common", "rare", "epic", "mythic", "legendary", "secret"]
 RARITY_FILTERS = ["common", "rare", "epic", "mythic", "legendary"]
 
-# Цены крутки увеличены
 SPIN_COSTS = {
-    "common": 500,        # было 350
-    "rare": 1800,         # было 1250
-    "epic": 5500,         # было 3500
-    "mythic": 35000,      # было 25000
-    "legendary": 110000,  # было 80000
+    "common": 500,
+    "rare": 1800,
+    "epic": 5500,
+    "mythic": 35000,
+    "legendary": 110000,
 }
 
 
-# ============ СТРАНЫ И ОПЕРАТОРЫ ============
+# ============ СТРАНЫ ============
 COUNTRIES = [
     {
         "code": "RU", "flag": "🇷🇺", "name": "Россия", "dial": "+7",
@@ -163,8 +142,7 @@ COUNTRIES = [
 ]
 
 
-# ============ ГЕНЕРАЦИЯ НОМЕРОВ ============
-def _format_phone(country: dict, prefix: str) -> str:
+def _format_phone(country, prefix):
     d = lambda: str(random.randint(0, 9))
     code = country["code"]
     if code == "RU": return f"+7 ({prefix}) {d()}{d()}{d()}-{d()}{d()}-{d()}{d()}"
@@ -180,14 +158,14 @@ def _format_phone(country: dict, prefix: str) -> str:
     return f"+{prefix} {d()}{d()}{d()}{d()}{d()}{d()}"
 
 
-def get_country(code: str) -> Optional[dict]:
+def get_country(code):
     for c in COUNTRIES:
         if c["code"] == code:
             return c
     return COUNTRIES[0] if COUNTRIES else None
 
 
-def pick_rarity(min_rarity: str = "common") -> str:
+def pick_rarity(min_rarity="common"):
     if min_rarity not in RARITY_ORDER:
         min_rarity = "common"
     min_idx = RARITY_ORDER.index(min_rarity)
@@ -201,11 +179,11 @@ def pick_rarity(min_rarity: str = "common") -> str:
     return pool[0]
 
 
-def pick_rarity_any() -> str:
+def pick_rarity_any():
     return pick_rarity("common")
 
 
-def generate_phone(rarity: str, country_code: str, operator_code: Optional[str] = None) -> Dict[str, Any]:
+def generate_phone(rarity, country_code, operator_code=None):
     country = get_country(country_code)
     if not country:
         country = COUNTRIES[0]
@@ -229,7 +207,7 @@ def generate_phone(rarity: str, country_code: str, operator_code: Optional[str] 
     }
 
 
-def calc_price(rarity: str) -> int:
+def calc_price(rarity):
     base = RARITIES[rarity]["base_price"]
     variance = 0.75 + random.random() * 0.5
     return int(round(base * variance / 10) * 10)
@@ -237,28 +215,15 @@ def calc_price(rarity: str) -> int:
 
 def get_full_rarity_list():
     return [
-        {
-            "key": k,
-            "name": RARITIES[k]["name"],
-            "color": RARITIES[k]["color"],
-            "desc": RARITIES[k]["desc"],
-        }
+        {"key": k, "name": RARITIES[k]["name"], "color": RARITIES[k]["color"], "desc": RARITIES[k]["desc"]}
         for k in RARITY_ORDER
     ]
 
 
 def get_countries_for_frontend():
     return [
-        {
-            "code": c["code"],
-            "flag": c["flag"],
-            "name": c["name"],
-            "dial": c["dial"],
-            "operators": [
-                {"name": o["name"], "code": o["code"]}
-                for o in c["operators"]
-            ],
-        }
+        {"code": c["code"], "flag": c["flag"], "name": c["name"], "dial": c["dial"],
+         "operators": [{"name": o["name"], "code": o["code"]} for o in c["operators"]]}
         for c in COUNTRIES
     ]
 
@@ -289,9 +254,9 @@ ACHIEVEMENTS = {
 
 # ============ КРАФТ ============
 CRAFT_RULES = {
-    "common":    {"need": 5,  "cost": 800,    "produces": "rare"},
-    "rare":      {"need": 5,  "cost": 3000,   "produces": "epic"},
-    "epic":      {"need": 5,  "cost": 8000,   "produces": "mythic"},
-    "mythic":    {"need": 5,  "cost": 50000,  "produces": "legendary"},
-    "legendary": {"need": 3,  "cost": 200000, "produces": "secret"},
+    "common":    {"need": 5, "cost": 800,    "produces": "rare"},
+    "rare":      {"need": 5, "cost": 3000,   "produces": "epic"},
+    "epic":      {"need": 5, "cost": 8000,   "produces": "mythic"},
+    "mythic":    {"need": 5, "cost": 50000,  "produces": "legendary"},
+    "legendary": {"need": 3, "cost": 200000, "produces": "secret"},
 }
