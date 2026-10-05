@@ -1,5 +1,5 @@
 // ============================================================
-// Phone Numbers — API-driven Mini App (Этап 3)
+// Phone Numbers — API-driven Mini App (Финальная версия)
 // ============================================================
 
 const API_BASE = 'https://phone-game.onrender.com';
@@ -153,10 +153,10 @@ function showMaintenance(text) {
 // ACHIEVEMENT POPUP
 // ============================================================
 function showAchievementPopup(ach) {
-  $('achName').textContent = ach.name;
-  $('achDesc').textContent = ach.desc;
-  $('achReward').textContent = '+' + fmt(ach.reward) + ' ₽';
-  $('achModal').classList.add('show');
+  const nameEl = $('achName'); if (nameEl) nameEl.textContent = ach.name;
+  const descEl = $('achDesc'); if (descEl) descEl.textContent = ach.desc;
+  const rewEl = $('achReward'); if (rewEl) rewEl.textContent = '+' + fmt(ach.reward) + ' ₽';
+  const m = $('achModal'); if (m) m.classList.add('show');
   fireworks('#ffd60a');
 }
 
@@ -176,7 +176,6 @@ function updateUI() {
   const spinsEl = $('spinCount'); if (spinsEl) spinsEl.textContent = fmt(state.spinsTotal);
   const tabInv = $('tabInvCount'); if (tabInv) tabInv.textContent = state.inventory.length;
   updateSpinButtons();
-  updateSellAllButton();
   updateSelectionBar();
 }
 
@@ -187,42 +186,21 @@ function updateSpinButtons() {
   const p5 = $('spinBtn5Price'); if (p5) p5.textContent = fmt(cost * 5) + ' ₽';
 }
 
-function updateSellAllButton() {
-  const total = state.inventory.reduce((s, i) => s + i.price, 0);
-  const priceEl = $('sellAllPrice'); if (priceEl) priceEl.textContent = fmt(total) + ' ₽';
-  const btn = $('sellAllBtn'); const lbl = $('sellAllLabel');
-  if (!btn) return;
-  if (state.inventory.length === 0) {
-    btn.disabled = true;
-    if (lbl) lbl.textContent = 'Всё сразу';
-  } else {
-    btn.disabled = false;
-    if (lbl) lbl.textContent = '💵 Всё (' + state.inventory.length + ')';
-  }
-}
-
 function updateSelectionBar() {
   const alive = new Set(state.inventory.map(i => i.id));
   for (const id of Array.from(state.selected)) if (!alive.has(id)) state.selected.delete(id);
 
   const bar = $('invSelectionBar');
-  const btn = $('sellSelectedBtn');
   const count = state.selected.size;
 
   if (count === 0) {
     if (bar) bar.classList.remove('visible');
-    if (btn) btn.disabled = true;
-    const p = $('sellSelectedPrice'); if (p) p.textContent = '0 ₽';
-    const l = $('sellSelectedLabel'); if (l) l.textContent = '💵 Продать выбранные';
   } else {
     if (bar) bar.classList.add('visible');
     let sum = 0;
     state.inventory.forEach(i => { if (state.selected.has(i.id)) sum += i.price; });
     const c = $('invSelCount'); if (c) c.textContent = 'Выбрано: ' + count;
     const s = $('invSelSum'); if (s) s.textContent = fmt(sum) + ' ₽';
-    if (btn) btn.disabled = false;
-    const p = $('sellSelectedPrice'); if (p) p.textContent = fmt(sum) + ' ₽';
-    const l = $('sellSelectedLabel'); if (l) l.textContent = '💵 Продать (' + count + ')';
   }
 }
 
@@ -240,7 +218,7 @@ function renderCountrySelector() {
       if (state.spinning) return;
       state.country = c.code;
       state.operatorCode = null;
-      document.querySelectorAll('.country-chip').forEach(n => n.classList.remove('active'));
+      document.querySelectorAll('#countrySelector .country-chip').forEach(n => n.classList.remove('active'));
       el.classList.add('active');
       renderOperatorSelector();
       renderStaticReels();
@@ -329,7 +307,7 @@ function renderStaticReels() {
 }
 
 function animateReels(strip, highlightIndex, duration, onDone) {
-  const reels = $('reels');
+  const reels = $('reels'); if (!reels) return;
   reels.innerHTML = '';
   reels.style.transition = 'none';
   reels.style.transform = 'translateY(0)';
@@ -337,7 +315,8 @@ function animateReels(strip, highlightIndex, duration, onDone) {
 
   const rowHeight = 64;
   const paddingTop = 8;
-  const windowH = $('rouletteWindow').clientHeight;
+  const windowEl = $('rouletteWindow'); if (!windowEl) return;
+  const windowH = windowEl.clientHeight;
   const centerOffset = windowH / 2 - rowHeight / 2 - paddingTop;
   const startY = centerOffset;
   const endY = centerOffset - highlightIndex * rowHeight;
@@ -393,10 +372,10 @@ async function spinOne() {
   state.spinning = true;
   state.balance -= cost;
   updateUI();
-  $('spinBtn').disabled = true;
-  $('spinBtn5').disabled = true;
-  $('resultCard').classList.remove('show');
-  $('rouletteWindow').className = 'roulette-window';
+  const sb = $('spinBtn'); if (sb) sb.disabled = true;
+  const sb5 = $('spinBtn5'); if (sb5) sb5.disabled = true;
+  const rc = $('resultCard'); if (rc) rc.classList.remove('show');
+  const rw = $('rouletteWindow'); if (rw) rw.className = 'roulette-window';
 
   try {
     const res = await api('/api/spin', {
@@ -420,44 +399,34 @@ async function spinOne() {
     updateUI();
     showToast('❌ ' + e.message, '#ff375f');
     state.spinning = false;
-    $('spinBtn').disabled = false;
-    $('spinBtn5').disabled = false;
+    if (sb) sb.disabled = false;
+    if (sb5) sb5.disabled = false;
     renderStaticReels();
   }
 }
 
 function finishSpinSingle(phone) {
   const r = getRarity(phone.rarity);
-  $('resultRarity').style.display = '';
-  $('resultFlag').style.display = '';
-  $('resultNumber').style.display = '';
-  $('resultOperator').style.display = '';
-  $('resultPrice').style.display = '';
-  $('resultDesc').style.display = '';
+  const rr = $('resultRarity'); if (rr) { rr.style.display = ''; rr.textContent = r.name; rr.style.color = r.color; rr.style.textShadow = '0 0 20px ' + r.color; }
+  const rf = $('resultFlag'); if (rf) { rf.style.display = ''; rf.textContent = phone.country_flag; }
+  const rn = $('resultNumber'); if (rn) { rn.style.display = ''; rn.textContent = phone.number; rn.style.color = r.color; rn.style.textShadow = '0 0 30px ' + r.color; }
+  const ro = $('resultOperator'); if (ro) { ro.style.display = ''; ro.textContent = phone.country_name + ' · ' + phone.operator_name; }
+  const rp = $('resultPrice'); if (rp) { rp.style.display = ''; rp.textContent = '💰 ' + fmt(phone.price) + ' ₽'; }
+  const rd = $('resultDesc'); if (rd) { rd.style.display = ''; rd.textContent = r.desc; }
 
-  $('rouletteWindow').className = 'roulette-window rarity-' + phone.rarity;
-  $('resultRarity').textContent = r.name;
-  $('resultRarity').style.color = r.color;
-  $('resultRarity').style.textShadow = '0 0 20px ' + r.color;
-  $('resultFlag').textContent = phone.country_flag;
-  $('resultNumber').textContent = phone.number;
-  $('resultNumber').style.color = r.color;
-  $('resultNumber').style.textShadow = '0 0 30px ' + r.color;
-  $('resultOperator').textContent = phone.country_name + ' · ' + phone.operator_name;
-  $('resultPrice').textContent = '💰 ' + fmt(phone.price) + ' ₽';
-  $('resultDesc').textContent = r.desc;
+  const rw = $('rouletteWindow'); if (rw) rw.className = 'roulette-window rarity-' + phone.rarity;
 
   removeMultiList();
-  $('resultActions').style.display = 'flex';
+  const ra = $('resultActions'); if (ra) ra.style.display = 'flex';
   state.pending = { phones: [phone], multi: false };
-  $('resultCard').classList.add('show');
+  const rc = $('resultCard'); if (rc) rc.classList.add('show');
 
   if (phone.rarity === 'legendary' || phone.rarity === 'secret' || phone.rarity === 'mythic') {
     fireworks(r.color);
   }
   state.spinning = false;
-  $('spinBtn').disabled = false;
-  $('spinBtn5').disabled = false;
+  const sb = $('spinBtn'); if (sb) sb.disabled = false;
+  const sb5 = $('spinBtn5'); if (sb5) sb5.disabled = false;
 }
 
 // ============================================================
@@ -471,10 +440,10 @@ async function spinFive() {
   state.spinning = true;
   state.balance -= cost;
   updateUI();
-  $('spinBtn').disabled = true;
-  $('spinBtn5').disabled = true;
-  $('resultCard').classList.remove('show');
-  $('rouletteWindow').className = 'roulette-window';
+  const sb = $('spinBtn'); if (sb) sb.disabled = true;
+  const sb5 = $('spinBtn5'); if (sb5) sb5.disabled = true;
+  const rc = $('resultCard'); if (rc) rc.classList.remove('show');
+  const rw = $('rouletteWindow'); if (rw) rw.className = 'roulette-window';
 
   try {
     const res = await api('/api/spin5', {
@@ -499,8 +468,8 @@ async function spinFive() {
     updateUI();
     showToast('❌ ' + e.message, '#ff375f');
     state.spinning = false;
-    $('spinBtn').disabled = false;
-    $('spinBtn5').disabled = false;
+    if (sb) sb.disabled = false;
+    if (sb5) sb5.disabled = false;
     renderStaticReels();
   }
 }
@@ -511,15 +480,10 @@ function finishSpinFive(phones, highlightPhone) {
   const sorted = phones.slice().sort((a, b) => order[b.rarity] - order[a.rarity]);
   const topRarity = sorted[0].rarity;
 
-  $('rouletteWindow').className = 'roulette-window rarity-' + highlightPhone.rarity;
+  const rw = $('rouletteWindow'); if (rw) rw.className = 'roulette-window rarity-' + highlightPhone.rarity;
 
-  $('resultRarity').style.display = 'none';
-  $('resultFlag').style.display = 'none';
-  $('resultNumber').style.display = 'none';
-  $('resultOperator').style.display = 'none';
-  $('resultPrice').style.display = 'none';
-  $('resultDesc').style.display = 'none';
-  $('resultActions').style.display = 'none';
+  const ids = ['resultRarity','resultFlag','resultNumber','resultOperator','resultPrice','resultDesc','resultActions'];
+  ids.forEach(id => { const el = $(id); if (el) el.style.display = 'none'; });
 
   state.multiSelected.clear();
   phones.forEach((p, i) => { p._idx = i; state.multiSelected.add(i); });
@@ -531,9 +495,9 @@ function finishSpinFive(phones, highlightPhone) {
     fireworks(getRarity(topRarity).color);
   }
   state.spinning = false;
-  $('spinBtn').disabled = false;
-  $('spinBtn5').disabled = false;
-  $('resultCard').classList.add('show');
+  const sb = $('spinBtn'); if (sb) sb.disabled = false;
+  const sb5 = $('spinBtn5'); if (sb5) sb5.disabled = false;
+  const rc = $('resultCard'); if (rc) rc.classList.add('show');
 }
 
 // ============================================================
@@ -548,6 +512,8 @@ function removeMultiList() {
 
 function renderMultiListSelectable(sortedPhones, highlightPhone) {
   removeMultiList();
+
+  const rc = $('resultCard'); if (!rc) return;
 
   const wrap = document.createElement('div');
   wrap.id = 'multiListWrap';
@@ -609,7 +575,7 @@ function renderMultiListSelectable(sortedPhones, highlightPhone) {
     wrap.appendChild(item);
   });
 
-  $('resultCard').appendChild(wrap);
+  rc.appendChild(wrap);
   updateMultiHead();
 
   const actions = document.createElement('div');
@@ -641,7 +607,7 @@ function renderMultiListSelectable(sortedPhones, highlightPhone) {
   actions.appendChild(btnKeep);
   actions.appendChild(btnSell);
   actions.appendChild(btnSellAll);
-  $('resultCard').appendChild(actions);
+  rc.appendChild(actions);
 
   updateMultiButtons();
 }
@@ -773,14 +739,11 @@ async function handleSellAll() {
 function closeResult() {
   state.pending = null;
   state.multiSelected.clear();
-  $('resultCard').classList.remove('show');
+  const rc = $('resultCard'); if (rc) rc.classList.remove('show');
   removeMultiList();
-  $('resultRarity').style.display = '';
-  $('resultFlag').style.display = '';
-  $('resultNumber').style.display = '';
-  $('resultOperator').style.display = '';
-  $('resultPrice').style.display = '';
-  $('resultDesc').style.display = '';
+  ['resultRarity','resultFlag','resultNumber','resultOperator','resultPrice','resultDesc','resultActions'].forEach(id => {
+    const el = $(id); if (el) el.style.display = '';
+  });
   renderStaticReels();
 }
 
@@ -840,7 +803,6 @@ function renderInventoryFilters() {
 
 function renderInventory() {
   renderInventoryFilters();
-  updateSellAllButton();
   updateSelectionBar();
   const grid = $('invGrid'); if (!grid) return;
   grid.innerHTML = '';
@@ -889,35 +851,6 @@ function toggleSelect(id) {
 function clearSelection() {
   state.selected.clear();
   renderInventory();
-}
-
-async function sellSelectedFromInventory() {
-  if (state.selected.size === 0) return;
-  const ids = Array.from(state.selected);
-  try {
-    const res = await api('/api/inventory/sell', { method: 'POST', body: JSON.stringify({ ids }) });
-    state.balance = res.balance;
-    state.selected.clear();
-    showToast('💵 Продано ' + res.sold + ' за ' + fmt(res.total) + ' ₽', '#34c759');
-    checkNewAchievements(res);
-    await loadInventory();
-    updateUI();
-    renderInventory();
-  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
-}
-
-async function sellAllFromInventory() {
-  if (state.inventory.length === 0) return;
-  try {
-    const res = await api('/api/inventory/sell-all', { method: 'POST' });
-    state.balance = res.balance;
-    state.selected.clear();
-    showToast('💵 Продано ' + res.sold + ' за ' + fmt(res.total) + ' ₽', '#34c759');
-    checkNewAchievements(res);
-    await loadInventory();
-    updateUI();
-    renderInventory();
-  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
 }
 
 // ============================================================
@@ -998,11 +931,10 @@ async function loadCraft() {
 let craftTarget = null;
 function openCraftModal(rule) {
   craftTarget = rule;
-  $('craftRarity').textContent = rule.to_name;
-  $('craftRarity').style.color = rule.to_color;
-  $('craftResult').textContent = 'Обменять ' + rule.need + ' × ' + rule.from_name + ' на 1 × ' + rule.to_name;
-  $('craftCost').textContent = fmt(rule.cost) + ' ₽';
-  $('craftModal').classList.add('show');
+  const cr = $('craftRarity'); if (cr) { cr.textContent = rule.to_name; cr.style.color = rule.to_color; }
+  const cres = $('craftResult'); if (cres) cres.textContent = 'Обменять ' + rule.need + ' × ' + rule.from_name + ' на 1 × ' + rule.to_name;
+  const cc = $('craftCost'); if (cc) cc.textContent = fmt(rule.cost) + ' ₽';
+  const m = $('craftModal'); if (m) m.classList.add('show');
 }
 
 async function confirmCraft() {
@@ -1014,7 +946,7 @@ async function confirmCraft() {
     });
     state.balance = res.balance;
     updateUI();
-    $('craftModal').classList.remove('show');
+    const m = $('craftModal'); if (m) m.classList.remove('show');
     craftTarget = null;
     showToast('⚗️ Скрафчен: ' + res.new_phone.number, res.new_phone.rarity === 'secret' ? '#00e5ff' : '#ffd60a');
     fireworks(getRarity(res.new_phone.rarity).color);
@@ -1104,7 +1036,7 @@ function startBonusTimer(secondsLeft) {
     const h = Math.floor(left / 3600);
     const m = Math.floor((left % 3600) / 60);
     const s = left % 60;
-    sub.textContent = 'Через ' + h + 'ч ' + m + 'м ' + s + 'с';
+    if (sub) sub.textContent = 'Через ' + h + 'ч ' + m + 'м ' + s + 'с';
     left--;
   }
   tick();
@@ -1112,8 +1044,7 @@ function startBonusTimer(secondsLeft) {
 }
 
 async function claimBonus() {
-  const btn = $('bonusBtn');
-  btn.disabled = true;
+  const btn = $('bonusBtn'); if (btn) btn.disabled = true;
   try {
     const res = await api('/api/daily-bonus', { method: 'POST' });
     state.balance = res.balance;
@@ -1135,7 +1066,7 @@ async function loadAchievements() {
   list.innerHTML = '<div style="padding:20px;text-align:center;color:#6e6e85;">Загрузка...</div>';
   try {
     const data = await api('/api/achievements');
-    $('achCount').textContent = data.total_unlocked + '/' + data.total;
+    const cnt = $('achCount'); if (cnt) cnt.textContent = data.total_unlocked + '/' + data.total;
     list.innerHTML = '';
     data.all.forEach(a => {
       const el = document.createElement('div');
@@ -1234,8 +1165,7 @@ async function activatePromo() {
     const res = await api('/api/promo/activate', { method: 'POST', body: JSON.stringify({ code }) });
     state.usedPromos.add(code);
     state.balance = res.balance;
-    $('balance').classList.add('flash');
-    setTimeout(() => $('balance').classList.remove('flash'), 700);
+    const bal = $('balance'); if (bal) { bal.classList.add('flash'); setTimeout(() => bal.classList.remove('flash'), 700); }
     fireworks('#34c759');
     showToast('🎉 Промокод: +' + fmt(res.amount) + ' ₽', '#34c759');
     input.value = '';
@@ -1260,37 +1190,23 @@ function setupTabs() {
         p.classList.toggle('active', p.id === 'page-' + target);
       });
       const controlsSpin = $('controls');
-      const controlsInv = $('controlsInv');
-      if (target === 'inventory') {
+      if (target === 'roulette') {
+        if (controlsSpin) controlsSpin.style.display = 'flex';
+      } else {
         if (controlsSpin) controlsSpin.style.display = 'none';
-        if (controlsInv) controlsInv.style.display = 'flex';
-        renderInventory();
-      } else if (target === 'countries') {
-        if (controlsSpin) controlsSpin.style.display = 'none';
-        if (controlsInv) controlsInv.style.display = 'none';
-        renderCountries();
-      } else if (target === 'craft') {
-        if (controlsSpin) controlsSpin.style.display = 'none';
-        if (controlsInv) controlsInv.style.display = 'none';
-        loadCraft();
-      } else if (target === 'top') {
-        if (controlsSpin) controlsSpin.style.display = 'none';
-        if (controlsInv) controlsInv.style.display = 'none';
-        loadLeaderboard();
-      } else if (target === 'profile') {
-        if (controlsSpin) controlsSpin.style.display = 'none';
-        if (controlsInv) controlsInv.style.display = 'none';
+      }
+      if (target === 'inventory') renderInventory();
+      if (target === 'countries') renderCountries();
+      if (target === 'craft') loadCraft();
+      if (target === 'top') loadLeaderboard();
+      if (target === 'profile') {
         loadBonus();
         loadTrades();
         loadAchievements();
-      } else {
-        if (controlsSpin) controlsSpin.style.display = 'flex';
-        if (controlsInv) controlsInv.style.display = 'none';
       }
     });
   });
 
-  // Leaderboard subtabs
   document.querySelectorAll('.lb-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       state.lbMode = btn.dataset.lb;
@@ -1325,32 +1241,28 @@ async function init() {
     updateUI();
     setupTabs();
 
-    $('spinBtn').addEventListener('click', spinOne);
-    $('spinBtn5').addEventListener('click', spinFive);
-    $('sellAllBtn').addEventListener('click', sellAllFromInventory);
-    $('sellSelectedBtn').addEventListener('click', sellSelectedFromInventory);
-    $('invSelClear').addEventListener('click', clearSelection);
-    $('btnKeep').addEventListener('click', handleKeepAll);
-    $('btnSellNow').addEventListener('click', handleSellAll);
+    const spinBtn = $('spinBtn'); if (spinBtn) spinBtn.addEventListener('click', spinOne);
+    const spinBtn5 = $('spinBtn5'); if (spinBtn5) spinBtn5.addEventListener('click', spinFive);
+    const invSelClear = $('invSelClear'); if (invSelClear) invSelClear.addEventListener('click', clearSelection);
+    const btnKeep = $('btnKeep'); if (btnKeep) btnKeep.addEventListener('click', handleKeepAll);
+    const btnSellNow = $('btnSellNow'); if (btnSellNow) btnSellNow.addEventListener('click', handleSellAll);
 
-    $('craftCancel').addEventListener('click', () => { $('craftModal').classList.remove('show'); craftTarget = null; });
-    $('craftConfirm').addEventListener('click', confirmCraft);
-    $('craftModal').addEventListener('click', e => { if (e.target === $('craftModal')) { $('craftModal').classList.remove('show'); craftTarget = null; } });
+    const craftCancel = $('craftCancel'); if (craftCancel) craftCancel.addEventListener('click', () => { const m = $('craftModal'); if (m) m.classList.remove('show'); craftTarget = null; });
+    const craftConfirm = $('craftConfirm'); if (craftConfirm) craftConfirm.addEventListener('click', confirmCraft);
+    const craftModal = $('craftModal'); if (craftModal) craftModal.addEventListener('click', e => { if (e.target === craftModal) { craftModal.classList.remove('show'); craftTarget = null; } });
 
-    $('achOk').addEventListener('click', () => $('achModal').classList.remove('show'));
+    const achOk = $('achOk'); if (achOk) achOk.addEventListener('click', () => { const m = $('achModal'); if (m) m.classList.remove('show'); });
 
-    $('bonusBtn').addEventListener('click', claimBonus);
+    const bonusBtn = $('bonusBtn'); if (bonusBtn) bonusBtn.addEventListener('click', claimBonus);
 
-    const promoHead = $('promoBarHead');
-    if (promoHead) promoHead.addEventListener('click', togglePromoBar);
-    const promoBtn = $('promoBtn');
-    if (promoBtn) promoBtn.addEventListener('click', activatePromo);
+    const promoHead = $('promoBarHead'); if (promoHead) promoHead.addEventListener('click', togglePromoBar);
+    const promoBtn = $('promoBtn'); if (promoBtn) promoBtn.addEventListener('click', activatePromo);
     const promoInput = $('promoInput');
     if (promoInput) {
       promoInput.addEventListener('keydown', e => { if (e.key === 'Enter') activatePromo(); });
     }
 
-    console.log('✅ App initialized (Этап 3)');
+    console.log('✅ App initialized (Финал)');
   } catch (e) {
     console.error('❌ Init error:', e);
     showToast('Ошибка: ' + e.message, '#ff375f');
