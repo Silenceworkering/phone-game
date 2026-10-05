@@ -572,3 +572,33 @@ body::before{
 }
 .trade-btn.accept { background: linear-gradient(135deg, #34c759, #30d158); color: #fff; }
 .trade-btn.decline { background: rgba(255,55,95,.2); color: #ff375f; border: 1px solid rgba(255,55,95,.4); }
+/* FIX: минимальная редкость */
+.page-roulette {
+  justify-content: flex-start !important;
+  overflow-y: auto !important;
+  padding-bottom: 100px !important;
+}
+.roulette-options {
+  margin-top: 10px !important;
+  margin-bottom: 20px !important;
+  flex-shrink: 0 !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+.rarity-options {
+  display: grid !important;
+  grid-template-columns: repeat(5, 1fr) !important;
+  gap: 6px !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 60px !important;
+}
+.rarity-opt {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 10px 4px !important;
+  min-height: 55px !important;
+}
