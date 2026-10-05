@@ -1,32 +1,41 @@
+import hashlib
+import hmac
+import json
+import time
 from datetime import datetime, timedelta
 from typing import Optional
+from urllib.parse import parse_qsl
 
-from fastapi import Depends, HTTPException, Header, status
+import bcrypt
+from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-from telegram_init_data import validate, parse
 
 from .config import settings
 from .database import get_db
 from .models import Admin, User
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+# ============ ПАРОЛИ ============
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    # bcrypt ограничен 72 байтами
+    pwd_bytes = password.encode("utf-8")[:72]
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     try:
-        return pwd_context.verify(plain, hashed)
+        pwd_bytes = plain.encode("utf-8")[:72]
+        return bcrypt.checkpw(pwd_bytes, hashed.encode("utf-8"))
     except Exception:
         return False
 
 
+# ============ JWT ============
 def create_token(payload: dict) -> str:
     data = payload.copy()
     data["exp"] = datetime.utcnow() + timedelta(hours=settings.JWT_EXPIRE_HOURS)
@@ -40,21 +49,65 @@ def decode_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
+# ============ TELEGRAM INIT DATA (своя валидация) ============
 def verify_telegram_init_data(init_data: str) -> Optional[dict]:
+    """
+    Проверка подписи Telegram initData.
+    Документация: https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
+    """
     try:
-        validate(init_data, settings.BOT_TOKEN)
-        parsed = parse(init_data)
-        if hasattr(parsed, "user") and parsed.user:
-            return {
-                "id": parsed.user.id,
-                "first_name": getattr(parsed.user, "first_name", "") or "",
-                "last_name": getattr(parsed.user, "last_name", "") or "",
-                "username": getattr(parsed.user, "username", "") or "",
-                "photo_url": getattr(parsed.user, "photo_url", "") or "",
-            }
+        # 1. Парсим query-string в список пар
+        pairs = parse_qsl(init_data, keep_blank_values=True)
+        data = dict(pairs)
+
+        # 2. Достаём hash и удаляем его из данных
+        received_hash = data.pop("hash", None)
+        if not received_hash:
+            return None
+
+        # 3. Сортируем по ключу и собираем data_check_string
+        data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
+
+        # 4. Секретный ключ = HMAC-SHA256(bot_token, "WebAppData")
+        secret_key = hmac.new(
+            b"WebAppData",
+            settings.BOT_TOKEN.encode(),
+            hashlib.sha256,
+        ).digest()
+
+        # 5. Проверяем подпись
+        calc_hash = hmac.new(
+            secret_key,
+            data_check_string.encode(),
+            hashlib.sha256,
+        ).hexdigest()
+
+        if calc_hash != received_hash:
+            print("⚠️ initData hash mismatch")
+            return None
+
+        # 6. Проверяем свежесть (не старше 24ч)
+        auth_date = int(data.get("auth_date", "0"))
+        if auth_date and time.time() - auth_date > 86400:
+            print("⚠️ initData expired")
+            return None
+
+        # 7. Извлекаем user
+        user_json = data.get("user")
+        if not user_json:
+            return None
+
+        user = json.loads(user_json)
+        return {
+            "id": user.get("id"),
+            "first_name": user.get("first_name", "") or "",
+            "last_name": user.get("last_name", "") or "",
+            "username": user.get("username", "") or "",
+            "photo_url": user.get("photo_url", "") or "",
+        }
     except Exception as e:
         print("initData error:", e)
-    return None
+        return None
 
 
 def get_or_create_user(db: Session, tg_data: dict) -> User:
@@ -89,6 +142,7 @@ def get_or_create_user(db: Session, tg_data: dict) -> User:
     return user
 
 
+# ============ DEPENDENCIES ============
 def get_current_admin(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db),
