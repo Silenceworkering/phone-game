@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Админка — Phone Numbers</title>
+<link rel="stylesheet" href="/admin/static/styles.css">
+</head>
+<body>
+<div id="app">
+  <div id="login-screen" class="screen">
+    <div class="login-box">
+      <div class="login-logo">🔧</div>
+      <h1>Админ-панель</h1>
+      <p class="subtitle">Phone Numbers</p>
+      <input type="text" id="login-input" placeholder="Логин" autocomplete="username">
+      <input type="password" id="password-input" placeholder="Пароль" autocomplete="current-password">
+      <button id="login-btn">Войти</button>
+      <div id="login-error" class="error"></div>
+    </div>
+  </div>
+
+  <div id="panel-screen" class="screen hidden">
+    <header class="topbar">
+      <div class="topbar-logo">🔧 Phone Numbers Admin</div>
+      <div class="topbar-right">
+        <span id="admin-login" class="admin-login"></span>
+        <button id="logout-btn" class="btn-small">Выйти</button>
+      </div>
+    </header>
+
+    <nav class="side-nav">
+      <button class="nav-btn active" data-tab="dashboard">📊 Обзор</button>
+      <button class="nav-btn" data-tab="users">👥 Игроки</button>
+      <button class="nav-btn" data-tab="promos">🎁 Промокоды</button>
+      <button class="nav-btn" data-tab="admins">🔑 Админы</button>
+      <button class="nav-btn" data-tab="settings">⚙️ Настройки</button>
+      <button class="nav-btn" data-tab="maintenance">🛑 Техперерыв</button>
+    </nav>
+
+    <main class="content">
+      <section class="tab" id="tab-dashboard">
+        <h2>📊 Обзор</h2>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">Игроков</div><div class="stat-value" id="stat-users">—</div></div>
+          <div class="stat-card"><div class="stat-label">Круток</div><div class="stat-value" id="stat-spins">—</div></div>
+          <div class="stat-card"><div class="stat-label">Общий баланс</div><div class="stat-value" id="stat-balance">—</div></div>
+          <div class="stat-card"><div class="stat-label">Техперерыв</div><div class="stat-value" id="stat-maint">—</div></div>
+        </div>
+      </section>
+
+      <section class="tab hidden" id="tab-users">
+        <h2>👥 Игроки</h2>
+        <div class="toolbar">
+          <input type="text" id="user-search" placeholder="Поиск по имени или username...">
+          <button id="user-refresh" class="btn-small">Обновить</button>
+        </div>
+        <div id="users-list" class="list"></div>
+      </section>
+
+      <section class="tab hidden" id="tab-promos">
+        <h2>🎁 Промокоды</h2>
+        <div class="promo-form">
+          <input type="text" id="promo-code" placeholder="КОД" maxlength="32">
+          <input type="number" id="promo-amount" placeholder="Сумма ₽" value="5000">
+          <label class="checkline">
+            <input type="checkbox" id="promo-reusable"> Многоразовый
+          </label>
+          <input type="number" id="promo-maxuses" placeholder="Лимит (0 = без)" value="0">
+          <button id="promo-create">Создать</button>
+        </div>
+        <div id="promos-list" class="list"></div>
+      </section>
+
+      <section class="tab hidden" id="tab-admins">
+        <h2>🔑 Админы</h2>
+        <div class="promo-form">
+          <input type="text" id="admin-login-new" placeholder="Логин">
+          <input type="password" id="admin-password-new" placeholder="Пароль">
+          <select id="admin-role">
+            <option value="moderator">Модератор</option>
+            <option value="owner">Владелец</option>
+          </select>
+          <button id="admin-create">Создать</button>
+        </div>
+        <div id="admins-list" class="list"></div>
+      </section>
+
+      <section class="tab hidden" id="tab-settings">
+        <h2>⚙️ Настройки</h2>
+        <p class="hint">Изменения сохраняются сразу</p>
+        <div id="settings-list" class="list"></div>
+      </section>
+
+      <section class="tab hidden" id="tab-maintenance">
+        <h2>🛑 Техперерыв</h2>
+        <div class="maint-box">
+          <label class="checkline big">
+            <input type="checkbox" id="maint-toggle">
+            <span>Включить техперерыв</span>
+          </label>
+          <input type="text" id="maint-text" placeholder="Текст для игроков" value="Технические работы">
+          <button id="maint-save">Сохранить</button>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="/admin/static/app.js"></script>
+</body>
+</html>
