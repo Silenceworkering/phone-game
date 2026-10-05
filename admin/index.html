@@ -32,6 +32,8 @@
     <nav class="side-nav">
       <button class="nav-btn active" data-tab="dashboard">📊 Обзор</button>
       <button class="nav-btn" data-tab="users">👥 Игроки</button>
+      <button class="nav-btn" data-tab="spins">🎰 Логи круток</button>
+      <button class="nav-btn" data-tab="broadcast">📢 Рассылка</button>
       <button class="nav-btn" data-tab="promos">🎁 Промокоды</button>
       <button class="nav-btn" data-tab="admins">🔑 Админы</button>
       <button class="nav-btn" data-tab="settings">⚙️ Настройки</button>
@@ -56,6 +58,37 @@
           <button id="user-refresh" class="btn-small">Обновить</button>
         </div>
         <div id="users-list" class="list"></div>
+      </section>
+
+      <section class="tab hidden" id="tab-spins">
+        <h2>🎰 Логи круток</h2>
+        <div class="toolbar">
+          <input type="text" id="spin-search" placeholder="Поиск по имени или номеру...">
+          <select id="spin-rarity-filter" class="select-input">
+            <option value="">Все редкости</option>
+            <option value="common">Обычный</option>
+            <option value="rare">Редкий</option>
+            <option value="epic">Эпический</option>
+            <option value="mythic">Мифический</option>
+            <option value="legendary">Легендарный</option>
+            <option value="secret">Секретный</option>
+          </select>
+          <button id="spin-refresh" class="btn-small">Обновить</button>
+        </div>
+        <div id="spins-list" class="list"></div>
+      </section>
+
+      <section class="tab hidden" id="tab-broadcast">
+        <h2>📢 Рассылка всем игрокам</h2>
+        <p class="hint">Сообщение получат все незабаненные игроки. Отправка занимает время — в зависимости от числа игроков.</p>
+        <div class="broadcast-box">
+          <textarea id="broadcast-text" placeholder="Введите текст сообщения (поддерживается HTML: &lt;b&gt;жирный&lt;/b&gt;, &lt;i&gt;курсив&lt;/i&gt;, &lt;a href=&quot;url&quot;&gt;ссылка&lt;/a&gt;)..." maxlength="4000"></textarea>
+          <div class="broadcast-info">
+            <span id="broadcast-count">Игроков: —</span>
+            <span id="broadcast-status"></span>
+          </div>
+          <button id="broadcast-send" class="btn-primary">📢 Отправить всем</button>
+        </div>
       </section>
 
       <section class="tab hidden" id="tab-promos">
