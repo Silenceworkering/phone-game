@@ -1356,3 +1356,7 @@ if (document.readyState === 'loading') {
 } else {
   boot();
 }
+async function boot() {
+  const isMaint = await checkMaintenance();
+  if (!isMaint) init();
+}
