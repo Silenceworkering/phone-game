@@ -120,12 +120,31 @@
       <h3 class="page-title">👤 Профиль</h3>
 
       <div class="profile-section">
-        <div class="section-title">🔄 Обмены</div>
-        <button class="trade-create-btn" id="openTradeBtn" type="button">➕ Создать обмен</button>
+        <div class="section-title">💸 Переводы и обмены</div>
+
+        <div class="transfer-grid">
+          <button class="transfer-btn money-btn" id="openMoneyBtn" type="button">
+            <div class="tb-icon">💸</div>
+            <div class="tb-text">
+              <div class="tb-title">Перевести ₽</div>
+              <div class="tb-sub">Просто деньги</div>
+            </div>
+          </button>
+
+          <button class="transfer-btn trade-btn-main" id="openTradeBtn" type="button">
+            <div class="tb-icon">🔄</div>
+            <div class="tb-text">
+              <div class="tb-title">Обмен</div>
+              <div class="tb-sub">Номера + ₽</div>
+            </div>
+          </button>
+        </div>
+
         <div class="trade-tabs">
           <button class="trade-tab active" data-trade="incoming">📥 Входящие <span id="tradeInCount" class="trade-count">0</span></button>
           <button class="trade-tab" data-trade="outgoing">📤 Исходящие</button>
         </div>
+
         <div id="tradesList"></div>
       </div>
 
@@ -148,6 +167,7 @@
   </div>
 </div>
 
+<!-- МОДАЛКА ПРОДАЖИ -->
 <div class="modal-backdrop" id="sellModal">
   <div class="modal">
     <div class="modal-flag" id="modalFlag"></div>
@@ -165,6 +185,7 @@
   </div>
 </div>
 
+<!-- МОДАЛКА КРАФТА -->
 <div class="modal-backdrop" id="craftModal">
   <div class="modal">
     <div class="modal-flag" id="craftFlag">⚗️</div>
@@ -181,6 +202,7 @@
   </div>
 </div>
 
+<!-- МОДАЛКА ДОСТИЖЕНИЯ -->
 <div class="modal-backdrop" id="achModal">
   <div class="modal">
     <div class="modal-flag" id="achFlag">🏅</div>
@@ -197,6 +219,43 @@
   </div>
 </div>
 
+<!-- МОДАЛКА ПЕРЕВОДА ДЕНЕГ -->
+<div class="modal-backdrop" id="moneyModal">
+  <div class="modal money-modal">
+    <div class="money-modal-head">
+      <div class="money-modal-icon">💸</div>
+      <div class="money-modal-title">Перевод денег</div>
+      <div class="money-modal-sub">Отправь ₽ другому игроку</div>
+    </div>
+
+    <div class="money-modal-body">
+      <div class="trade-modal-label">Кому (введи @username)</div>
+      <input type="text" class="trade-input" id="moneyUsername" placeholder="@username" maxlength="32" autocomplete="off" spellcheck="false">
+      <button class="trade-find-btn" id="moneyFindBtn" type="button">🔍 Найти игрока</button>
+      <div id="moneyFoundInfo" class="trade-found-info"></div>
+
+      <div id="moneyAmountSection" style="display:none;">
+        <div class="trade-modal-label">Сколько перевести</div>
+        <input type="number" class="trade-input big" id="moneyAmount" placeholder="0 ₽" min="1" value="">
+        <div class="money-quick">
+          <button class="money-quick-btn" data-amt="1000" type="button">1 000</button>
+          <button class="money-quick-btn" data-amt="5000" type="button">5 000</button>
+          <button class="money-quick-btn" data-amt="10000" type="button">10 000</button>
+          <button class="money-quick-btn" data-amt="50000" type="button">50 000</button>
+        </div>
+        <div class="money-balance-info">У тебя: <span id="moneyMyBal">0 ₽</span></div>
+        <input type="text" class="trade-input" id="moneyMessage" placeholder="Сообщение (необязательно)" maxlength="120">
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="modal-btn cancel" id="moneyCancel" type="button">Отмена</button>
+      <button class="modal-btn sell" id="moneySend" type="button" style="display:none;">💸 Отправить</button>
+    </div>
+  </div>
+</div>
+
+<!-- МОДАЛКА СОЗДАНИЯ ОБМЕНА -->
 <div class="modal-backdrop" id="tradeModal">
   <div class="modal trade-modal">
     <div class="trade-modal-title">🔄 Новый обмен</div>
@@ -204,18 +263,18 @@
     <div class="trade-modal-section">
       <div class="trade-modal-label">Кому (введи @username)</div>
       <input type="text" class="trade-input" id="tradeUsername" placeholder="@username" maxlength="32" autocomplete="off" spellcheck="false">
-      <button class="trade-find-btn" id="tradeFindBtn" type="button">Найти игрока</button>
+      <button class="trade-find-btn" id="tradeFindBtn" type="button">🔍 Найти игрока</button>
       <div id="tradeFoundInfo" class="trade-found-info"></div>
     </div>
 
     <div class="trade-modal-section" id="tradeMySection" style="display:none;">
-      <div class="trade-modal-label">Что я отдаю</div>
+      <div class="trade-modal-label">📤 Что я отдаю</div>
       <div class="trade-my-items" id="tradeMyItems"></div>
       <input type="number" class="trade-input" id="tradeMyMoney" placeholder="+ Деньги (необязательно)" min="0" value="">
     </div>
 
     <div class="trade-modal-section" id="tradeHisSection" style="display:none;">
-      <div class="trade-modal-label">Что хочу от него</div>
+      <div class="trade-modal-label">📥 Что хочу от него</div>
       <div class="trade-his-items" id="tradeHisItems"></div>
       <input type="number" class="trade-input" id="tradeHisMoney" placeholder="+ Деньги (необязательно)" min="0" value="">
     </div>
@@ -231,9 +290,10 @@
   </div>
 </div>
 
+<!-- ПОДТВЕРЖДЕНИЕ -->
 <div class="modal-backdrop" id="tradeConfirmModal">
   <div class="modal">
-    <div class="modal-flag">⚠️</div>
+    <div class="modal-flag" id="confirmIcon">⚠️</div>
     <div class="modal-rarity" style="color:#ffd60a;">Подтверждение</div>
     <div class="modal-number" id="tradeConfirmText" style="font-size:14px;font-family:inherit;line-height:1.5;"></div>
     <div class="modal-actions">
@@ -246,6 +306,6 @@
 <div class="toast" id="toast"></div>
 <div class="fireworks" id="fireworks"></div>
 
-<script type="module" src="app.js?v=2026r"></script>
+<script type="module" src="app.js?v=2026t"></script>
 </body>
 </html>
