@@ -14,7 +14,7 @@ from .auth import (
     get_current_admin,
 )
 from .database import get_db, get_setting, set_setting
-from .models import User, Admin, Promocode, SpinLog, PromoUse, Inventory
+from .models import User, Admin, Promocode, SpinLog, PromoUse, Inventory, MarketListing, DiceGame
 from .config import settings
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -50,11 +50,15 @@ def stats(admin: Admin = Depends(get_current_admin), db: Session = Depends(get_d
     spins_count = db.query(func.count(SpinLog.id)).scalar() or 0
     total_balance = db.query(func.sum(User.balance)).scalar() or 0
     inv_count = db.query(func.count(Inventory.id)).scalar() or 0
+    market_count = db.query(func.count(MarketListing.id)).filter(MarketListing.status == "active").scalar() or 0
+    dice_count = db.query(func.count(DiceGame.id)).filter(DiceGame.status == "open").scalar() or 0
     return {
         "users_count": users_count,
         "spins_count": spins_count,
         "total_balance": total_balance,
         "inventory_count": inv_count,
+        "market_count": market_count,
+        "dice_count": dice_count,
         "maintenance": get_setting(db, "maintenance", "0") == "1",
     }
 
@@ -93,6 +97,7 @@ def list_users(
                 "spins_total": u.spins_total,
                 "is_banned": u.is_banned,
                 "is_owner": u.is_owner,
+                "referrer_id": u.referrer_id,
                 "created_at": u.created_at.isoformat() if u.created_at else None,
                 "last_seen": u.last_seen.isoformat() if u.last_seen else None,
             }
@@ -129,7 +134,6 @@ def ban_user(user_id: int, payload: dict = Body(...), admin: Admin = Depends(get
 # ============================================================
 @router.post("/api/users/{user_id}/give-phone")
 def give_phone(user_id: int, payload: dict = Body(...), admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
-    """Выдать конкретному игроку номер, который напишет админ."""
     from . import game_data as gd
 
     user = db.query(User).filter(User.id == user_id).first()
@@ -146,16 +150,10 @@ def give_phone(user_id: int, payload: dict = Body(...), admin: Admin = Depends(g
     if rarity not in gd.RARITIES:
         raise HTTPException(status_code=400, detail="Неверная редкость")
 
-    # Извлекаем красоту из номера (серия — берём первые 3 цифры префикса, если формат известен)
-    # Просто считаем красоту без серии
     beauty = gd.calculate_beauty(number, "")
     price = gd.calc_price(rarity, beauty["total"])
 
-    # Определяем страну/флаг/оператор
-    country = gd.get_country(country_code)
-    if not country:
-        country = gd.COUNTRIES[0]
-    # Ищем оператора по префиксу номера (приблизительно)
+    country = gd.get_country(country_code) or gd.COUNTRIES[0]
     op = {"name": "—", "code": "—"}
     for o in country["operators"]:
         for p in o["prefixes"]:
@@ -182,14 +180,13 @@ def give_phone(user_id: int, payload: dict = Body(...), admin: Admin = Depends(g
     db.add(item)
     db.commit()
 
-    # Уведомление через бота
     if notify:
         try:
             from .bot import bot
             if bot:
                 asyncio.create_task(bot.send_message(
                     user.telegram_id,
-                    f"🎁 <b>Тебе выдан номер!</b>\n\n{number}\nРедкость: {gd.RARITIES[rarity]['name']}\nЦена: {price:,} ₽".replace(",", " "),
+                    f"🎁 <b>Тебе выдан номер!</b>\n\n{number}\nРедкость: {gd.RARITIES[rarity]['name']}",
                     parse_mode="HTML"
                 ))
         except Exception as e:
@@ -362,25 +359,13 @@ async def broadcast(payload: dict = Body(...), admin: Admin = Depends(get_curren
         raise HTTPException(status_code=400, detail="Текст пустой")
     if len(text) > 4000:
         raise HTTPException(status_code=400, detail="Слишком длинное сообщение")
-    from .bot import bot
-    if not bot:
-        raise HTTPException(status_code=500, detail="BOT_TOKEN не задан")
-    users = db.query(User).filter(User.is_banned == False).all()
-    sent = 0
-    failed = 0
-    for u in users:
-        try:
-            await bot.send_message(u.telegram_id, text, parse_mode="HTML")
-            sent += 1
-        except Exception:
-            failed += 1
-        await asyncio.sleep(0.05)
+    from .bot import broadcast_to_all
+    sent, failed = await broadcast_to_all(text)
     return {"success": True, "sent": sent, "failed": failed}
 
 
 @router.post("/api/give-money-all")
 async def give_money_all(payload: dict = Body(...), admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
-    """Выдать всем игрокам по X рублей."""
     amount = int(payload.get("amount") or 0)
     notify = bool(payload.get("notify", True))
     if amount <= 0:
@@ -594,3 +579,46 @@ def stop_boost(payload: dict = Body(...), admin: Admin = Depends(get_current_adm
         raise HTTPException(status_code=400, detail="Неверный тип буста")
     set_setting(db, key_map[boost_type], "0")
     return {"success": True}
+
+
+# ============================================================
+# РЫНОК (админский обзор)
+# ============================================================
+@router.get("/api/market")
+def admin_market_list(limit: int = 100, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
+    listings = db.query(MarketListing).order_by(MarketListing.created_at.desc()).limit(limit).all()
+    return {
+        "listings": [{
+            "id": l.id, "seller_id": l.seller_id, "number": l.number,
+            "rarity": l.rarity, "price": l.price, "status": l.status,
+            "country_flag": l.country_flag,
+            "created_at": l.created_at.isoformat() if l.created_at else None,
+        } for l in listings]
+    }
+
+
+@router.delete("/api/market/{listing_id}")
+def admin_delete_listing(listing_id: int, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
+    l = db.query(MarketListing).filter(MarketListing.id == listing_id).first()
+    if not l:
+        raise HTTPException(status_code=404, detail="Не найдено")
+    db.delete(l)
+    db.commit()
+    return {"success": True}
+
+
+# ============================================================
+# КОСТИ (админский обзор)
+# ============================================================
+@router.get("/api/dice")
+def admin_dice_list(limit: int = 50, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
+    games = db.query(DiceGame).order_by(DiceGame.created_at.desc()).limit(limit).all()
+    return {
+        "games": [{
+            "id": g.id, "creator_id": g.creator_id, "creator_name": g.creator_name,
+            "opponent_name": g.opponent_name, "bet": g.bet,
+            "dice1": g.dice1, "dice2": g.dice2,
+            "status": g.status, "winner_id": g.winner_id,
+            "created_at": g.created_at.isoformat() if g.created_at else None,
+        } for g in games]
+    }
