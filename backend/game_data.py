@@ -1,8 +1,8 @@
 """
-Игровые данные: редкости, страны, операторы.
+Игровые данные: редкости, страны, операторы, красота номеров.
 """
 import random
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple
 
 
 # ============ РЕДКОСТИ ============
@@ -10,32 +10,32 @@ RARITIES = {
     "common": {
         "key": "common", "name": "Обычный", "color": "#8e8e93",
         "weight": 68, "base_price": 250,
-        "desc": "Обычный номер. Начало коллекции.",
+        "desc": "Обычный номер.",
     },
     "rare": {
         "key": "rare", "name": "Редкий", "color": "#34c759",
         "weight": 20, "base_price": 1100,
-        "desc": "Редкий номер! Уже интересно.",
+        "desc": "Редкий номер!",
     },
     "epic": {
         "key": "epic", "name": "Эпический", "color": "#bf5af2",
         "weight": 8.5, "base_price": 3200,
-        "desc": "Эпический номер! Впечатляет.",
+        "desc": "Эпический номер!",
     },
     "mythic": {
         "key": "mythic", "name": "Мифический", "color": "#ff375f",
         "weight": 2.8, "base_price": 22000,
-        "desc": "Мифический номер! Таких единицы.",
+        "desc": "Мифический номер!",
     },
     "legendary": {
         "key": "legendary", "name": "Легендарный", "color": "#ffd60a",
         "weight": 0.6, "base_price": 75000,
-        "desc": "ЛЕГЕНДАРНЫЙ! Невероятная удача!",
+        "desc": "ЛЕГЕНДАРНЫЙ!",
     },
     "secret": {
         "key": "secret", "name": "СЕКРЕТНЫЙ", "color": "#00e5ff",
         "weight": 0.1, "base_price": 450000,
-        "desc": "🤫 СЕКРЕТ! Ты нашёл невозможное...",
+        "desc": "🤫 СЕКРЕТ...",
     },
 }
 
@@ -142,9 +142,151 @@ COUNTRIES = [
 ]
 
 
-def _format_phone(country, prefix):
+# ============ ВСПОМОГАТЕЛЬНЫЕ ============
+def _digits_of(number: str) -> str:
+    return "".join(c for c in number if c.isdigit())
+
+
+def _max_repeat(d: str) -> int:
+    if not d:
+        return 0
+    best = 1
+    cur = 1
+    for i in range(1, len(d)):
+        if d[i] == d[i - 1]:
+            cur += 1
+            if cur > best:
+                best = cur
+        else:
+            cur = 1
+    return best
+
+
+def _max_same_digit(d: str) -> int:
+    if not d:
+        return 0
+    counts = {}
+    for c in d:
+        counts[c] = counts.get(c, 0) + 1
+    return max(counts.values())
+
+
+def _is_palindrome(d: str) -> bool:
+    return d == d[::-1]
+
+
+def _is_mirror_6(d: str) -> bool:
+    return len(d) == 6 and d[:3] == d[3:][::-1]
+
+
+def _is_ascending(d: str) -> bool:
+    if len(d) < 3:
+        return False
+    for i in range(1, len(d)):
+        if int(d[i]) != int(d[i - 1]) + 1:
+            return False
+    return True
+
+
+def _is_descending(d: str) -> bool:
+    if len(d) < 3:
+        return False
+    for i in range(1, len(d)):
+        if int(d[i]) != int(d[i - 1]) - 1:
+            return False
+    return True
+
+
+def _all_even(d: str) -> bool:
+    return len(d) > 0 and all(int(c) % 2 == 0 for c in d)
+
+
+def _all_odd(d: str) -> bool:
+    return len(d) > 0 and all(int(c) % 2 == 1 for c in d)
+
+
+def _is_repeating_pair(d: str) -> bool:
+    if len(d) < 4 or len(d) % 2 != 0:
+        return False
+    pair = d[:2]
+    return d == pair * (len(d) // 2)
+
+
+def _is_even_pairs(d: str) -> bool:
+    if len(d) < 4 or len(d) % 2 != 0:
+        return False
+    for i in range(0, len(d), 2):
+        if d[i] != d[i + 1]:
+            return False
+    return True
+
+
+def _is_round(d: str) -> bool:
+    return d.endswith("0000") or d.endswith("000")
+
+
+# ============ ПРАВИЛА КРАСОТЫ ============
+BEAUTY_DIGIT_RULES = [
+    (lambda d: d == "777777", "Все семёрки", 500),
+    (lambda d: len(d) == 7 and len(set(d)) == 1 and d[0] == "7", "Семь семёрок", 600),
+    (lambda d: len(set(d)) == 1 and len(d) == 6, "Шесть одинаковых", 300),
+    (lambda d: _max_repeat(d) == 5, "Пять подряд", 150),
+    (lambda d: _max_same_digit(d) == 5, "Пять одинаковых", 100),
+    (lambda d: _max_repeat(d) == 4, "Четыре подряд", 80),
+    (lambda d: _max_same_digit(d) == 4, "Четыре одинаковых", 60),
+    (lambda d: _max_repeat(d) == 3, "Три подряд", 20),
+    (lambda d: _max_same_digit(d) == 3, "Три одинаковых", 15),
+
+    (lambda d: _is_palindrome(d) and len(d) == 7, "Полное зеркало", 100),
+    (lambda d: _is_mirror_6(d), "Симметрия", 80),
+    (lambda d: len(d) == 6 and _is_palindrome(d), "Зеркало", 50),
+
+    (lambda d: _is_ascending(d), "По возрастанию", 30),
+    (lambda d: _is_descending(d), "По убыванию", 30),
+    (lambda d: _is_repeating_pair(d), "Повтор пары", 25),
+    (lambda d: _is_even_pairs(d), "Ровные пары", 8),
+    (lambda d: _is_round(d), "Круглое", 10),
+    (lambda d: _all_even(d), "Все чётные", 5),
+    (lambda d: _all_odd(d), "Все нечётные", 5),
+]
+
+
+BEAUTY_PREFIX_RULES = {
+    "777": ("Три семёрки", 80),
+    "999": ("Три девятки", 60),
+    "888": ("Три восьмёрки", 40),
+    "666": ("Три шестёрки", 30),
+    "000": ("Три нуля", 25),
+    "007": ("Агент 007", 30),
+    "404": ("Ошибка 404", 15),
+    "808": ("Бит 808", 20),
+    "111": ("Три единицы", 20),
+    "555": ("Три пятёрки", 15),
+    "333": ("Три тройки", 15),
+    "222": ("Три двойки", 12),
+    "444": ("Три четвёрки", 12),
+    "123": ("Порядок 123", 12),
+    "321": ("Обратный 321", 12),
+    "101": ("Двоичный", 10),
+    "202": ("Палиндром", 10),
+    "303": ("Палиндром", 10),
+    "505": ("Пятый", 10),
+    "707": ("Семёрка", 10),
+}
+
+
+BEAUTY_SPECIAL_RULES = [
+    (lambda d: "314159" in d, "Пи-номер", 100),
+    (lambda d: "161803" in d, "Золотое сечение", 60),
+    (lambda d: "2000" in d or "2024" in d or "2025" in d, "Миллениум", 8),
+]
+
+
+# ============ ФОРМАТИРОВАНИЕ ============
+def _format_phone(country: dict, prefix: str) -> str:
     d = lambda: str(random.randint(0, 9))
     code = country["code"]
+
     if code == "RU": return f"+7 ({prefix}) {d()}{d()}{d()}-{d()}{d()}-{d()}{d()}"
     if code == "US": return f"+1 ({prefix}) {d()}{d()}{d()}-{d()}{d()}{d()}{d()}"
     if code == "GB": return f"+44 {prefix} {d()}{d()}{d()} {d()}{d()}{d()}"
@@ -158,32 +300,39 @@ def _format_phone(country, prefix):
     return f"+{prefix} {d()}{d()}{d()}{d()}{d()}{d()}"
 
 
-def get_country(code):
+def get_country(code: str) -> Optional[dict]:
     for c in COUNTRIES:
         if c["code"] == code:
             return c
     return COUNTRIES[0] if COUNTRIES else None
 
 
-def pick_rarity(min_rarity="common"):
+# ============ РЕДКОСТИ ============
+def pick_rarity(min_rarity: str = "common", luck_mult: float = 1.0) -> str:
     if min_rarity not in RARITY_ORDER:
         min_rarity = "common"
     min_idx = RARITY_ORDER.index(min_rarity)
     pool = RARITY_ORDER[min_idx:]
-    total = sum(RARITIES[k]["weight"] for k in pool)
-    roll = random.uniform(0, total)
+    weights = []
     for k in pool:
-        roll -= RARITIES[k]["weight"]
+        w = RARITIES[k]["weight"]
+        if luck_mult > 1.0 and k != "common":
+            w *= luck_mult
+        weights.append(w)
+    total = sum(weights)
+    roll = random.uniform(0, total)
+    for k, w in zip(pool, weights):
+        roll -= w
         if roll <= 0:
             return k
     return pool[0]
 
 
-def pick_rarity_any():
+def pick_rarity_any() -> str:
     return pick_rarity("common")
 
 
-def generate_phone(rarity, country_code, operator_code=None):
+def generate_phone(rarity: str, country_code: str, operator_code: Optional[str] = None) -> Dict[str, Any]:
     country = get_country(country_code)
     if not country:
         country = COUNTRIES[0]
@@ -204,15 +353,50 @@ def generate_phone(rarity, country_code, operator_code=None):
         "operator_code": op["code"],
         "operator_name": op["name"],
         "number": number,
+        "beauty_prefix": prefix,
     }
 
 
-def calc_price(rarity):
+# ============ КРАСОТА ============
+def calculate_beauty(number: str, beauty_prefix: str) -> Dict[str, Any]:
+    digits = _digits_of(number)
+    components: List[Dict[str, Any]] = []
+
+    for condition, name, mult in BEAUTY_DIGIT_RULES:
+        try:
+            if condition(digits):
+                components.append({"name": name, "mult": mult})
+                break
+        except Exception:
+            pass
+
+    if beauty_prefix in BEAUTY_PREFIX_RULES:
+        name, mult = BEAUTY_PREFIX_RULES[beauty_prefix]
+        components.append({"name": name, "mult": mult})
+
+    for condition, name, mult in BEAUTY_SPECIAL_RULES:
+        try:
+            if condition(digits):
+                components.append({"name": name, "mult": mult})
+                break
+        except Exception:
+            pass
+
+    total = sum(c["mult"] for c in components) if components else 1
+    if total < 1:
+        total = 1
+
+    return {"total": total, "components": components}
+
+
+def calc_price(rarity: str, beauty_total: float = 1.0) -> int:
     base = RARITIES[rarity]["base_price"]
-    variance = 0.75 + random.random() * 0.5
-    return int(round(base * variance / 10) * 10)
+    variance = 0.85 + random.random() * 0.3
+    final = base * variance * beauty_total
+    return int(round(final / 10) * 10)
 
 
+# ============ МЕТАДАННЫЕ ============
 def get_full_rarity_list():
     return [
         {"key": k, "name": RARITIES[k]["name"], "color": RARITIES[k]["color"], "desc": RARITIES[k]["desc"]}
@@ -222,8 +406,10 @@ def get_full_rarity_list():
 
 def get_countries_for_frontend():
     return [
-        {"code": c["code"], "flag": c["flag"], "name": c["name"], "dial": c["dial"],
-         "operators": [{"name": o["name"], "code": o["code"]} for o in c["operators"]]}
+        {
+            "code": c["code"], "flag": c["flag"], "name": c["name"], "dial": c["dial"],
+            "operators": [{"name": o["name"], "code": o["code"]} for o in c["operators"]],
+        }
         for c in COUNTRIES
     ]
 
