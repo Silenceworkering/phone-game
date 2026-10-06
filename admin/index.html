@@ -8,6 +8,7 @@
 </head>
 <body>
 <div id="app">
+  <!-- LOGIN -->
   <div id="login-screen" class="screen">
     <div class="login-box">
       <div class="login-logo">🔧</div>
@@ -20,6 +21,7 @@
     </div>
   </div>
 
+  <!-- PANEL -->
   <div id="panel-screen" class="screen hidden">
     <header class="topbar">
       <div class="topbar-logo">🔧 Phone Numbers Admin</div>
@@ -31,26 +33,113 @@
 
     <nav class="side-nav">
       <button class="nav-btn active" data-tab="dashboard">📊 Обзор</button>
+      <button class="nav-btn" data-tab="commands">⚡ Команды</button>
       <button class="nav-btn" data-tab="users">👥 Игроки</button>
-      <button class="nav-btn" data-tab="spins">🎰 Логи круток</button>
+      <button class="nav-btn" data-tab="spins">🎰 Логи</button>
       <button class="nav-btn" data-tab="broadcast">📢 Рассылка</button>
       <button class="nav-btn" data-tab="promos">🎁 Промокоды</button>
       <button class="nav-btn" data-tab="admins">🔑 Админы</button>
       <button class="nav-btn" data-tab="settings">⚙️ Настройки</button>
-      <button class="nav-btn" data-tab="maintenance">🛑 Техперерыв</button>
     </nav>
 
     <main class="content">
+      <!-- DASHBOARD -->
       <section class="tab" id="tab-dashboard">
         <h2>📊 Обзор</h2>
         <div class="stats-grid">
           <div class="stat-card"><div class="stat-label">Игроков</div><div class="stat-value" id="stat-users">—</div></div>
           <div class="stat-card"><div class="stat-label">Круток</div><div class="stat-value" id="stat-spins">—</div></div>
+          <div class="stat-card"><div class="stat-label">Номеров</div><div class="stat-value" id="stat-inv">—</div></div>
           <div class="stat-card"><div class="stat-label">Общий баланс</div><div class="stat-value" id="stat-balance">—</div></div>
           <div class="stat-card"><div class="stat-label">Техперерыв</div><div class="stat-value" id="stat-maint">—</div></div>
         </div>
       </section>
 
+      <!-- COMMANDS -->
+      <section class="tab hidden" id="tab-commands">
+        <h2>⚡ Панель команд</h2>
+
+        <div class="cmd-card">
+          <div class="cmd-title">🛑 Техперерыв</div>
+          <div class="cmd-row">
+            <span class="cmd-status" id="maintStatus">Выключен</span>
+            <button class="btn-warn" id="maintToggle">Включить</button>
+          </div>
+          <input type="text" class="cmd-input" id="maintTextInput" placeholder="Текст для игроков" value="Технические работы">
+          <button class="btn-secondary" id="maintSaveText">Сохранить текст</button>
+        </div>
+
+        <div class="cmd-card">
+          <div class="cmd-title">⚡ Временные бусты</div>
+          <div class="cmd-boosts" id="boostsList">
+            <div class="boost-item" data-boost="golden">
+              <div class="boost-info">
+                <div class="boost-name">🎰 Золотая лихорадка</div>
+                <div class="boost-desc">15 мин · Цены −50%, шансы ×2</div>
+              </div>
+              <div class="boost-actions">
+                <span class="boost-status" id="boostGoldenStatus">—</span>
+                <button class="btn-primary btn-small" data-start="golden">Включить</button>
+                <button class="btn-secondary btn-small hidden" data-stop="golden">Стоп</button>
+              </div>
+            </div>
+            <div class="boost-item" data-boost="double">
+              <div class="boost-info">
+                <div class="boost-name">💎 Двойной шанс</div>
+                <div class="boost-desc">30 мин · Шансы ×2</div>
+              </div>
+              <div class="boost-actions">
+                <span class="boost-status" id="boostDoubleStatus">—</span>
+                <button class="btn-primary btn-small" data-start="double">Включить</button>
+                <button class="btn-secondary btn-small hidden" data-stop="double">Стоп</button>
+              </div>
+            </div>
+            <div class="boost-item" data-boost="discount">
+              <div class="boost-info">
+                <div class="boost-name">💰 Скидка 50%</div>
+                <div class="boost-desc">30 мин · Цены −50%</div>
+              </div>
+              <div class="boost-actions">
+                <span class="boost-status" id="boostDiscountStatus">—</span>
+                <button class="btn-primary btn-small" data-start="discount">Включить</button>
+                <button class="btn-secondary btn-small hidden" data-stop="discount">Стоп</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cmd-card">
+          <div class="cmd-title">🎯 Быстрые действия по @username</div>
+
+          <div class="quick-block">
+            <div class="quick-label">💸 Выдать деньги</div>
+            <div class="quick-row">
+              <input type="text" class="cmd-input" id="moneyUsername" placeholder="@username">
+              <input type="number" class="cmd-input small" id="moneyAmount" placeholder="Сумма" value="10000">
+              <button class="btn-primary" id="giveMoneyBtn">Выдать</button>
+            </div>
+          </div>
+
+          <div class="quick-block">
+            <div class="quick-label">🎁 Выдать номер</div>
+            <div class="quick-row">
+              <input type="text" class="cmd-input" id="phoneUsername" placeholder="@username">
+              <input type="text" class="cmd-input" id="phoneNumber" placeholder="+7 (999) 123-45-67">
+              <select class="cmd-input small" id="phoneRarity">
+                <option value="common">Обычный</option>
+                <option value="rare">Редкий</option>
+                <option value="epic">Эпический</option>
+                <option value="mythic">Мифический</option>
+                <option value="legendary">Легендарный</option>
+                <option value="secret">СЕКРЕТНЫЙ</option>
+              </select>
+              <button class="btn-primary" id="givePhoneBtn">Выдать</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- USERS -->
       <section class="tab hidden" id="tab-users">
         <h2>👥 Игроки</h2>
         <div class="toolbar">
@@ -60,6 +149,7 @@
         <div id="users-list" class="list"></div>
       </section>
 
+      <!-- SPINS -->
       <section class="tab hidden" id="tab-spins">
         <h2>🎰 Логи круток</h2>
         <div class="toolbar">
@@ -78,19 +168,34 @@
         <div id="spins-list" class="list"></div>
       </section>
 
+      <!-- BROADCAST -->
       <section class="tab hidden" id="tab-broadcast">
-        <h2>📢 Рассылка всем игрокам</h2>
-        <p class="hint">Сообщение получат все незабаненные игроки. Отправка занимает время — в зависимости от числа игроков.</p>
+        <h2>📢 Рассылка и массовые действия</h2>
+
         <div class="broadcast-box">
-          <textarea id="broadcast-text" placeholder="Введите текст сообщения (поддерживается HTML: &lt;b&gt;жирный&lt;/b&gt;, &lt;i&gt;курсив&lt;/i&gt;, &lt;a href=&quot;url&quot;&gt;ссылка&lt;/a&gt;)..." maxlength="4000"></textarea>
+          <div class="broadcast-title">📢 Рассылка всем</div>
+          <textarea id="broadcast-text" placeholder="Введите текст сообщения (HTML поддерживается)..." maxlength="4000"></textarea>
           <div class="broadcast-info">
             <span id="broadcast-count">Игроков: —</span>
             <span id="broadcast-status"></span>
           </div>
           <button id="broadcast-send" class="btn-primary">📢 Отправить всем</button>
         </div>
+
+        <div class="broadcast-box">
+          <div class="broadcast-title">💸 Выдать всем по X ₽</div>
+          <div class="broadcast-row">
+            <input type="number" id="give-all-amount" class="cmd-input" placeholder="Сумма" value="10000">
+            <label class="checkline">
+              <input type="checkbox" id="give-all-notify" checked> Уведомить
+            </label>
+            <button id="give-all-btn" class="btn-primary">Выдать всем</button>
+          </div>
+          <div id="give-all-status" class="broadcast-status"></div>
+        </div>
       </section>
 
+      <!-- PROMOS -->
       <section class="tab hidden" id="tab-promos">
         <h2>🎁 Промокоды</h2>
         <div class="promo-form">
@@ -105,6 +210,7 @@
         <div id="promos-list" class="list"></div>
       </section>
 
+      <!-- ADMINS -->
       <section class="tab hidden" id="tab-admins">
         <h2>🔑 Админы</h2>
         <div class="promo-form">
@@ -119,22 +225,11 @@
         <div id="admins-list" class="list"></div>
       </section>
 
+      <!-- SETTINGS -->
       <section class="tab hidden" id="tab-settings">
         <h2>⚙️ Настройки</h2>
-        <p class="hint">Изменения сохраняются сразу</p>
+        <p class="hint">Изменения сохраняются автоматически</p>
         <div id="settings-list" class="list"></div>
-      </section>
-
-      <section class="tab hidden" id="tab-maintenance">
-        <h2>🛑 Техперерыв</h2>
-        <div class="maint-box">
-          <label class="checkline big">
-            <input type="checkbox" id="maint-toggle">
-            <span>Включить техперерыв</span>
-          </label>
-          <input type="text" id="maint-text" placeholder="Текст для игроков" value="Технические работы">
-          <button id="maint-save">Сохранить</button>
-        </div>
       </section>
     </main>
   </div>
