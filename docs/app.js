@@ -1,5 +1,5 @@
 // ============================================================
-// Phone Numbers — Финальная версия (переводы + обмены)
+// Phone Numbers — Финальная версия (множители + удача + обмены)
 // ============================================================
 
 const API_BASE = 'https://phone-game.onrender.com';
@@ -20,24 +20,27 @@ const state = {
   spinning: false,
   pending: null,
   multiSelected: new Set(),
+  multiPhones: [],
   usedPromos: new Set(),
   lbMode: 'balance',
-  bonusTimer: null
+  bonusTimer: null,
+  luckInfo: null,
+  boostTimers: {}
 };
 
 const $ = id => document.getElementById(id);
-const fmt = n => n.toLocaleString('ru-RU');
+const fmt = n => Math.round(n).toLocaleString('ru-RU');
 
 function getRarity(key) {
   if (!state.meta) return { name: '—', color: '#8e8e93', desc: '' };
   return state.meta.rarities.find(r => r.key === key) || { name: key, color: '#8e8e93', desc: '' };
 }
-
 function getCountry(code) {
   if (!state.meta) return { code, flag: '🌍', name: code, operators: [] };
   return state.meta.countries.find(c => c.code === code) || state.meta.countries[0];
 }
 
+// ============ API ============
 async function api(path, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
@@ -53,6 +56,7 @@ async function api(path, options = {}) {
   return data;
 }
 
+// ============ AUTH ============
 async function authenticate() {
   const tg = window.Telegram && window.Telegram.WebApp;
   if (!tg || !tg.initData) throw new Error('Открой игру через бота');
@@ -86,6 +90,7 @@ async function loadProfile() {
   state.user = me;
   state.balance = me.balance;
   state.spinsTotal = me.spins_total || 0;
+  if (me.luck) state.luckInfo = me.luck;
 }
 
 async function loadInventory() {
@@ -95,6 +100,7 @@ async function loadInventory() {
   } catch (e) { state.inventory = []; }
 }
 
+// ============ TOAST / FIREWORKS / MAINTENANCE ============
 let toastTimer = null;
 function showToast(text, color) {
   const t = $('toast'); if (!t) return;
@@ -145,17 +151,23 @@ function checkNewAchievements(res) {
   }
 }
 
+// ============ UI UPDATE ============
 function updateUI() {
   const b = $('balance'); if (b) b.textContent = fmt(state.balance) + ' ₽';
   const s = $('spinCount'); if (s) s.textContent = fmt(state.spinsTotal);
   const t = $('tabInvCount'); if (t) t.textContent = state.inventory.length;
   updateSpinButtons();
   updateSelectionBar();
+  updateLuckPill();
+  updateBoosts();
 }
 
 function updateSpinButtons() {
   if (!state.meta) return;
-  const cost = state.meta.spin_costs[state.minRarity] || 500;
+  let cost = state.meta.spin_costs[state.minRarity] || 500;
+  // Учитываем скидку
+  if (state.meta.boost_discount && state.meta.boost_discount.active) cost = Math.floor(cost * 0.5);
+  if (state.meta.boost_golden && state.meta.boost_golden.active) cost = Math.floor(cost * 0.5);
   const p1 = $('spinBtnPrice'); if (p1) p1.textContent = fmt(cost) + ' ₽';
   const p5 = $('spinBtn5Price'); if (p5) p5.textContent = fmt(cost * 5) + ' ₽';
 }
@@ -164,10 +176,14 @@ function updateSelectionBar() {
   const alive = new Set(state.inventory.map(i => i.id));
   for (const id of Array.from(state.selected)) if (!alive.has(id)) state.selected.delete(id);
   const bar = $('invSelectionBar');
+  const actions = $('invActions');
   const count = state.selected.size;
-  if (count === 0) { if (bar) bar.classList.remove('visible'); }
-  else {
+  if (count === 0) {
+    if (bar) bar.classList.remove('visible');
+    if (actions) actions.style.display = 'none';
+  } else {
     if (bar) bar.classList.add('visible');
+    if (actions) actions.style.display = 'block';
     let sum = 0;
     state.inventory.forEach(i => { if (state.selected.has(i.id)) sum += i.price; });
     const c = $('invSelCount'); if (c) c.textContent = 'Выбрано: ' + count;
@@ -175,6 +191,93 @@ function updateSelectionBar() {
   }
 }
 
+// ============ LUCK PILL ============
+function updateLuckPill() {
+  const pill = $('luckPill');
+  const mult = $('luckMult');
+  const prog = $('luckProgress');
+  if (!pill || !state.luckInfo) return;
+  const info = state.luckInfo;
+  mult.textContent = '×' + info.next_mult;
+  prog.textContent = info.progress + '/100';
+  if (info.next_mult === 25 && info.left <= 5) {
+    pill.classList.add('almost');
+  } else if (info.left <= 5) {
+    pill.classList.add('almost');
+  } else {
+    pill.classList.remove('almost');
+  }
+}
+
+function openLuckModal() {
+  if (!state.luckInfo) return;
+  const info = state.luckInfo;
+  const m = $('luckModal'); if (m) m.classList.add('show');
+  const nx = $('luckModalNext'); if (nx) nx.textContent = 'Следующая удача ×' + info.next_mult;
+  const fill = $('luckModalFill'); if (fill) fill.style.width = info.progress + '%';
+  const left = $('luckModalLeft'); if (left) left.textContent = 'Осталось: ' + info.left + ' круток';
+  const pr = $('luckModalProgress'); if (pr) pr.textContent = info.progress + '/100';
+  const sup = $('luckModalSuper'); if (sup) sup.textContent = 'До супер-удачи ×25: ' + info.super_left + ' круток';
+}
+
+// ============ BOOSTS ============
+function updateBoosts() {
+  const row = $('boostsRow');
+  if (!row || !state.meta) return;
+  const boosts = [
+    { key: 'boost_golden', el: 'boostGolden', timer: 'boostGoldenTimer', color: '#ffd60a' },
+    { key: 'boost_double', el: 'boostDouble', timer: 'boostDoubleTimer', color: '#0a84ff' },
+    { key: 'boost_discount', el: 'boostDiscount', timer: 'boostDiscountTimer', color: '#34c759' },
+  ];
+  let anyActive = false;
+  boosts.forEach(b => {
+    const info = state.meta[b.key];
+    const el = $(b.el);
+    if (info && info.active) {
+      anyActive = true;
+      if (el) el.style.display = 'inline-block';
+      // Стартуем таймер
+      startBoostTimer(b.key, info.seconds_left, b.timer);
+    } else {
+      if (el) el.style.display = 'none';
+    }
+  });
+  row.style.display = anyActive ? 'flex' : 'none';
+}
+
+function startBoostTimer(key, secondsLeft, timerElId) {
+  if (state.boostTimers[key]) return;
+  let left = secondsLeft;
+  const el = $(timerElId);
+  function tick() {
+    if (left <= 0) {
+      clearInterval(state.boostTimers[key]);
+      delete state.boostTimers[key];
+      // Обновить статус
+      setTimeout(() => refreshStatus(), 500);
+      return;
+    }
+    const m = Math.floor(left / 60);
+    const s = left % 60;
+    if (el) el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+    left--;
+  }
+  tick();
+  state.boostTimers[key] = setInterval(tick, 1000);
+}
+
+async function refreshStatus() {
+  try {
+    const res = await fetch(API_BASE + '/api/status', { cache: 'no-store' });
+    if (res.ok) {
+      state.meta = await res.json();
+      updateSpinButtons();
+      updateBoosts();
+    }
+  } catch (e) {}
+}
+
+// ============ SELECTORS ============
 function renderCountrySelector() {
   const wrap = $('countrySelector'); if (!wrap || !state.meta) return;
   wrap.innerHTML = '';
@@ -202,17 +305,28 @@ function renderOperatorSelector() {
   const anyEl = document.createElement('div');
   anyEl.className = 'country-chip op-chip-mini' + (state.operatorCode === null ? ' active' : '');
   anyEl.innerHTML = '<span class="cf">🎲</span><span class="cn">Любой</span>';
-  anyEl.addEventListener('click', () => { if (state.spinning) return; state.operatorCode = null; renderOperatorSelector(); renderStaticReels(); });
+  anyEl.addEventListener('click', () => {
+    if (state.spinning) return;
+    state.operatorCode = null;
+    renderOperatorSelector();
+    renderStaticReels();
+  });
   wrap.appendChild(anyEl);
   (country.operators || []).forEach(op => {
     const el = document.createElement('div');
     el.className = 'country-chip op-chip-mini' + (state.operatorCode === op.code ? ' active' : '');
     el.innerHTML = '<span class="cn">' + op.name + '</span>';
-    el.addEventListener('click', () => { if (state.spinning) return; state.operatorCode = op.code; renderOperatorSelector(); renderStaticReels(); });
+    el.addEventListener('click', () => {
+      if (state.spinning) return;
+      state.operatorCode = op.code;
+      renderOperatorSelector();
+      renderStaticReels();
+    });
     wrap.appendChild(el);
   });
 }
 
+// ============ REELS ============
 function randomDigit() { return String(Math.floor(Math.random() * 10)); }
 
 function fakePhone(country) {
@@ -304,29 +418,71 @@ function buildAnimationStrip(finalPhone, highlightIndex, totalItems) {
   return strip;
 }
 
+// ============ АНИМАЦИЯ ПЕРЕБОРА ЦИФР В ПЛАШКЕ ============
+function scrambleNumber(container, finalNumber, duration = 1500) {
+  return new Promise(resolve => {
+    const chars = '0123456789';
+    const startTime = performance.now();
+    function frame(now) {
+      const t = Math.min((now - startTime) / duration, 1);
+      let out = '';
+      for (let i = 0; i < finalNumber.length; i++) {
+        const c = finalNumber[i];
+        if (c >= '0' && c <= '9') {
+          if (t > 0.7 && Math.random() < (t - 0.7) / 0.3) {
+            out += c;
+          } else {
+            out += chars[Math.floor(Math.random() * 10)];
+          }
+        } else {
+          out += c;
+        }
+      }
+      container.textContent = out;
+      if (t < 1) requestAnimationFrame(frame);
+      else { container.textContent = finalNumber; resolve(); }
+    }
+    requestAnimationFrame(frame);
+  });
+}
+
+// ============ SPIN 1 ============
 async function spinOne() {
   if (state.spinning) return;
-  const cost = state.meta.spin_costs[state.minRarity] || 500;
+  let cost = state.meta.spin_costs[state.minRarity] || 500;
+  if (state.meta.boost_discount && state.meta.boost_discount.active) cost = Math.floor(cost * 0.5);
+  if (state.meta.boost_golden && state.meta.boost_golden.active) cost = Math.floor(cost * 0.5);
   if (state.balance < cost) { showToast('❌ Недостаточно средств', '#ff375f'); return; }
+
   state.spinning = true;
   state.balance -= cost;
   updateUI();
   const sb = $('spinBtn'); if (sb) sb.disabled = true;
   const sb5 = $('spinBtn5'); if (sb5) sb5.disabled = true;
-  const rc = $('resultCard'); if (rc) rc.classList.remove('show');
-  const rw = $('rouletteWindow'); if (rw) rw.className = 'roulette-window';
+  const ro = $('resultOverlay'); if (ro) ro.classList.remove('show');
+  const mo = $('multiOverlay'); if (mo) mo.classList.remove('show');
+
   try {
     const res = await api('/api/spin', { method: 'POST', body: JSON.stringify({ country: state.country, operator: state.operatorCode, min_rarity: state.minRarity }) });
     state.balance = res.balance;
     state.spinsTotal = res.spins_total;
+    if (res.luck_info) state.luckInfo = res.luck_info;
     updateUI();
-    const finalPhone = res.phone;
+
+    const phone = res.phone;
     const totalItems = 50;
     const centerIndex = totalItems - 5;
-    const strip = buildAnimationStrip(finalPhone, centerIndex, totalItems);
-    animateReels(strip, centerIndex, 3800, () => { finishSpinSingle(finalPhone); checkNewAchievements(res); });
+    const strip = buildAnimationStrip(phone, centerIndex, totalItems);
+
+    // Показываем рулетку
+    animateReels(strip, centerIndex, 2800, () => {
+      // После рулетки — показываем плашку с перебором
+      finishSpinSingle(phone);
+      checkNewAchievements(res);
+    });
   } catch (e) {
-    state.balance += cost; updateUI();
+    state.balance += cost;
+    updateUI();
     showToast('❌ ' + e.message, '#ff375f');
     state.spinning = false;
     if (sb) sb.disabled = false;
@@ -335,49 +491,110 @@ async function spinOne() {
   }
 }
 
-function finishSpinSingle(phone) {
+async function finishSpinSingle(phone) {
   const r = getRarity(phone.rarity);
-  const rr = $('resultRarity'); if (rr) { rr.style.display = ''; rr.textContent = r.name; rr.style.color = r.color; rr.style.textShadow = '0 0 20px ' + r.color; }
-  const rf = $('resultFlag'); if (rf) { rf.style.display = ''; rf.textContent = phone.country_flag; }
-  const rn = $('resultNumber'); if (rn) { rn.style.display = ''; rn.textContent = phone.number; rn.style.color = r.color; rn.style.textShadow = '0 0 30px ' + r.color; }
-  const ro = $('resultOperator'); if (ro) { ro.style.display = ''; ro.textContent = phone.country_name + ' · ' + phone.operator_name; }
-  const rp = $('resultPrice'); if (rp) { rp.style.display = ''; rp.textContent = '💰 ' + fmt(phone.price) + ' ₽'; }
-  const rd = $('resultDesc'); if (rd) { rd.style.display = ''; rd.textContent = r.desc; }
-  const rw = $('rouletteWindow'); if (rw) rw.className = 'roulette-window rarity-' + phone.rarity;
-  removeMultiList();
-  const ra = $('resultActions'); if (ra) ra.style.display = 'flex';
+
+  // Показываем overlay
+  const ro = $('resultOverlay'); if (ro) ro.classList.add('show');
+
+  // Редкость в шапке
+  const rr = $('resultRarity');
+  if (rr) {
+    rr.textContent = r.name;
+    rr.style.color = r.color;
+    rr.style.textShadow = '0 0 16px ' + r.color;
+  }
+
+  // Плашка номера с перебором
+  const numEl = $('phoneNumber');
+  if (numEl) {
+    numEl.style.color = r.color;
+    numEl.style.textShadow = '0 0 12px ' + r.color;
+    scrambleNumber(numEl, phone.number, 1500);
+  }
+
+  const fEl = $('phoneFlag'); if (fEl) fEl.textContent = phone.country_flag;
+  const oEl = $('resultOperator'); if (oEl) oEl.textContent = phone.country_name + ' · ' + phone.operator_name;
+
+  // Разбивка множителей
+  const bl = $('beautyList');
+  if (bl) {
+    bl.innerHTML = '';
+    const comps = phone.components || [];
+    if (!comps.length) {
+      bl.innerHTML = '<div class="beauty-list-empty">Обычное сочетание</div>';
+    } else {
+      comps.forEach(c => {
+        const row = document.createElement('div');
+        row.className = 'beauty-row';
+        row.innerHTML = '<span class="name">' + c.name + '</span><span class="mult">×' + c.mult + '</span>';
+        bl.appendChild(row);
+      });
+    }
+  }
+
+  // Итоговый множитель
+  const rt = $('resultTotal');
+  if (rt) {
+    const totalMult = phone.multiplier || 1;
+    if (totalMult > 1) {
+      rt.textContent = '💰 Итог: ×' + totalMult;
+      rt.style.display = '';
+    } else {
+      rt.style.display = 'none';
+    }
+  }
+
+  const rpf = $('resultPriceFinal');
+  if (rpf) rpf.textContent = fmt(phone.price) + ' ₽';
+
   state.pending = { phones: [phone], multi: false };
-  const rc = $('resultCard'); if (rc) rc.classList.add('show');
-  if (phone.rarity === 'legendary' || phone.rarity === 'secret' || phone.rarity === 'mythic') fireworks(r.color);
   state.spinning = false;
-  const sb = $('spinBtn'); if (sb) sb.disabled = false;
-  const sb5 = $('spinBtn5'); if (sb5) sb5.disabled = false;
+  if (sb) sb.disabled = false;
+  if (sb5) sb5.disabled = false;
+
+  if (phone.rarity === 'legendary' || phone.rarity === 'secret' || phone.rarity === 'mythic') {
+    fireworks(r.color);
+  }
 }
 
+// ============ SPIN ×5 ============
 async function spinFive() {
   if (state.spinning) return;
-  const cost = (state.meta.spin_costs[state.minRarity] || 500) * 5;
+  let cost = state.meta.spin_costs[state.minRarity] || 500;
+  if (state.meta.boost_discount && state.meta.boost_discount.active) cost = Math.floor(cost * 0.5);
+  if (state.meta.boost_golden && state.meta.boost_golden.active) cost = Math.floor(cost * 0.5);
+  cost = cost * 5;
   if (state.balance < cost) { showToast('❌ Недостаточно средств', '#ff375f'); return; }
+
   state.spinning = true;
   state.balance -= cost;
   updateUI();
   const sb = $('spinBtn'); if (sb) sb.disabled = true;
   const sb5 = $('spinBtn5'); if (sb5) sb5.disabled = true;
-  const rc = $('resultCard'); if (rc) rc.classList.remove('show');
-  const rw = $('rouletteWindow'); if (rw) rw.className = 'roulette-window';
+  const ro = $('resultOverlay'); if (ro) ro.classList.remove('show');
+  const mo = $('multiOverlay'); if (mo) mo.classList.remove('show');
+
   try {
     const res = await api('/api/spin5', { method: 'POST', body: JSON.stringify({ country: state.country, operator: state.operatorCode, min_rarity: state.minRarity }) });
     state.balance = res.balance;
     state.spinsTotal = res.spins_total;
+    if (res.luck_info) state.luckInfo = res.luck_info;
     updateUI();
+
     const phones = res.phones;
     const highlightPhone = phones[phones.length - 1];
     const totalItems = 40;
     const centerIndex = totalItems - 5;
     const strip = buildAnimationStrip(highlightPhone, centerIndex, totalItems);
-    animateReels(strip, centerIndex, 2800, () => { finishSpinFive(phones, highlightPhone); checkNewAchievements(res); });
+
+    animateReels(strip, centerIndex, 2800, () => {
+      finishSpinFive(phones);
+      checkNewAchievements(res);
+    });
   } catch (e) {
-    state.balance += cost; updateUI();
+    state.balance += cost;
+    updateUI();
     showToast('❌ ' + e.message, '#ff375f');
     state.spinning = false;
     if (sb) sb.disabled = false;
@@ -386,150 +603,104 @@ async function spinFive() {
   }
 }
 
-function finishSpinFive(phones, highlightPhone) {
+function finishSpinFive(phones) {
+  state.multiPhones = phones;
+  state.multiSelected = new Set(phones.map((_, i) => i));
+
+  // Сортируем по редкости (сначала лучшие)
   const order = {};
   state.meta.rarity_order.forEach((k, i) => { order[k] = i; });
   const sorted = phones.slice().sort((a, b) => order[b.rarity] - order[a.rarity]);
-  const topRarity = sorted[0].rarity;
-  const rw = $('rouletteWindow'); if (rw) rw.className = 'roulette-window rarity-' + highlightPhone.rarity;
-  ['resultRarity','resultFlag','resultNumber','resultOperator','resultPrice','resultDesc','resultActions'].forEach(id => { const el = $(id); if (el) el.style.display = 'none'; });
-  state.multiSelected.clear();
-  phones.forEach((p, i) => { p._idx = i; state.multiSelected.add(i); });
-  state.pending = { phones, multi: true };
-  renderMultiListSelectable(sorted, highlightPhone);
-  if (topRarity === 'legendary' || topRarity === 'secret' || topRarity === 'mythic') fireworks(getRarity(topRarity).color);
+  // Но нам нужны индексы оригинала — оставим как есть, просто отрисуем по порядку
+  renderMultiList(phones);
+
+  const mo = $('multiOverlay'); if (mo) mo.classList.add('show');
+
+  const total = phones.reduce((s, p) => s + p.price, 0);
+  const msub = $('multiSubtitle'); if (msub) msub.textContent = 'Всего: ' + fmt(total) + ' ₽';
+
   state.spinning = false;
   const sb = $('spinBtn'); if (sb) sb.disabled = false;
   const sb5 = $('spinBtn5'); if (sb5) sb5.disabled = false;
-  const rc = $('resultCard'); if (rc) rc.classList.add('show');
+
+  // Фейерверк если есть топ
+  const topRarity = sorted[0].rarity;
+  if (topRarity === 'legendary' || topRarity === 'secret' || topRarity === 'mythic') {
+    fireworks(getRarity(topRarity).color);
+  }
 }
 
-function removeMultiList() {
-  const el = document.getElementById('multiListWrap'); if (el) el.remove();
-  const b = document.getElementById('multiActions'); if (b) b.remove();
-}
-
-function renderMultiListSelectable(sortedPhones, highlightPhone) {
-  removeMultiList();
-  const rc = $('resultCard'); if (!rc) return;
-  const wrap = document.createElement('div');
-  wrap.id = 'multiListWrap';
-  wrap.className = 'multi-list';
-  const head = document.createElement('div');
-  head.id = 'multiHead';
-  head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:rgba(10,132,255,.15);border:1px solid rgba(10,132,255,.4);border-radius:10px;flex-shrink:0;';
-  head.innerHTML = '<span id="multiHeadCount" style="font-size:11px;font-weight:800;color:#fff;">Выбрано</span><span id="multiHeadSum" style="font-size:12px;font-weight:900;color:#ffd60a;">0 ₽</span>';
-  wrap.appendChild(head);
-  sortedPhones.forEach((p, index) => {
-    if (p._idx === undefined) p._idx = index;
+function renderMultiList(phones) {
+  const wrap = $('multiList'); if (!wrap) return;
+  wrap.innerHTML = '';
+  phones.forEach((p, i) => {
     const r = getRarity(p.rarity);
-    const isHl = highlightPhone && p.number === highlightPhone.number && p.rarity === highlightPhone.rarity;
-    const isSel = state.multiSelected.has(p._idx);
-    const item = document.createElement('div');
-    item.className = 'multi-item rarity-' + p.rarity + (isHl ? ' is-highlight' : '');
-    item.style.cursor = 'pointer';
-    const check = document.createElement('div');
-    check.style.cssText = 'width:18px;height:18px;border-radius:50%;border:2px solid ' + (isSel ? '#0a84ff' : 'rgba(255,255,255,.4)') + ';background:' + (isSel ? '#0a84ff' : 'rgba(0,0,0,.4)') + ';display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:900;color:' + (isSel ? '#fff' : 'transparent') + ';line-height:1;';
-    check.textContent = '✓';
-    item.appendChild(check);
-    const flag = document.createElement('span'); flag.className = 'mi-flag'; flag.textContent = p.country_flag || '🌍'; item.appendChild(flag);
-    const info = document.createElement('div'); info.className = 'mi-info';
-    const num = document.createElement('div'); num.className = 'mi-num'; num.textContent = p.number; info.appendChild(num);
-    const meta = document.createElement('div'); meta.className = 'mi-meta'; meta.style.color = r.color; meta.textContent = r.name + (isHl ? ' · ⭐' : ''); info.appendChild(meta);
-    item.appendChild(info);
-    const price = document.createElement('div'); price.className = 'mi-price'; price.textContent = fmt(p.price) + ' ₽'; item.appendChild(price);
-    item.addEventListener('click', () => {
-      if (state.multiSelected.has(p._idx)) state.multiSelected.delete(p._idx);
-      else state.multiSelected.add(p._idx);
-      renderMultiListSelectable(sortedPhones, highlightPhone);
+    const isSel = state.multiSelected.has(i);
+    const card = document.createElement('div');
+    card.className = 'multi-card rarity-' + p.rarity + (isSel ? ' selected' : '');
+    card.dataset.idx = i;
+
+    let beautyHtml = '';
+    if (p.components && p.components.length) {
+      beautyHtml = '<div class="multi-beauty-mini">✨ ' + p.components.map(c => c.name + ' ×' + c.mult).join(' · ') + '</div>';
+    }
+
+    card.innerHTML =
+      '<div class="multi-check">✓</div>' +
+      '<div class="multi-card-body">' +
+        '<div class="multi-flag-row">' +
+          '<span class="mflag">' + p.country_flag + '</span>' +
+          '<span class="mrarity" style="background:' + r.color + '"><span class="mrarity-text">' + r.name + '</span></span>' +
+        '</div>' +
+        '<div class="multi-number">' + p.number + '</div>' +
+        beautyHtml +
+        '<div class="multi-price">' + fmt(p.price) + ' ₽</div>' +
+      '</div>';
+
+    card.addEventListener('click', () => {
+      if (state.multiSelected.has(i)) state.multiSelected.delete(i);
+      else state.multiSelected.add(i);
+      card.classList.toggle('selected', state.multiSelected.has(i));
     });
-    wrap.appendChild(item);
+
+    wrap.appendChild(card);
   });
-  rc.appendChild(wrap);
-  updateMultiHead();
-  const actions = document.createElement('div');
-  actions.id = 'multiActions';
-  actions.className = 'result-actions';
-  actions.style.marginTop = '8px';
-  const btnKeep = document.createElement('button'); btnKeep.className = 'result-btn keep'; btnKeep.type = 'button'; btnKeep.id = 'multiKeep'; btnKeep.textContent = '📦 Оставить'; btnKeep.addEventListener('click', handleMultiKeep);
-  const btnSell = document.createElement('button'); btnSell.className = 'result-btn sell'; btnSell.type = 'button'; btnSell.id = 'multiSellSel'; btnSell.textContent = '💵 Продать'; btnSell.addEventListener('click', handleMultiSellSelected);
-  const btnSellAll = document.createElement('button'); btnSellAll.className = 'result-btn sell'; btnSellAll.type = 'button'; btnSellAll.textContent = '💵 Всё'; btnSellAll.style.background = 'linear-gradient(135deg,#ff375f,#bf5af2)'; btnSellAll.addEventListener('click', handleMultiSellAll);
-  actions.appendChild(btnKeep); actions.appendChild(btnSell); actions.appendChild(btnSellAll);
-  rc.appendChild(actions);
-  updateMultiButtons();
-}
-
-function updateMultiHead() {
-  const h = document.getElementById('multiHeadCount');
-  const s = document.getElementById('multiHeadSum');
-  if (!h || !s || !state.pending) return;
-  let sum = 0, count = 0;
-  state.pending.phones.forEach(p => { if (state.multiSelected.has(p._idx)) { sum += p.price; count++; } });
-  h.textContent = 'Выбрано: ' + count + '/' + state.pending.phones.length;
-  s.textContent = fmt(sum) + ' ₽';
-}
-
-function updateMultiButtons() {
-  const k = document.getElementById('multiKeep');
-  const s = document.getElementById('multiSellSel');
-  if (!k || !s) return;
-  const count = state.multiSelected.size;
-  if (count === 0) { k.disabled = true; k.style.opacity = '0.4'; s.disabled = true; s.style.opacity = '0.4'; k.textContent = '📦 Оставить'; s.textContent = '💵 Продать'; }
-  else { k.disabled = false; k.style.opacity = '1'; s.disabled = false; s.style.opacity = '1'; k.textContent = '📦 Оставить (' + count + ')'; s.textContent = '💵 Продать (' + count + ')'; }
 }
 
 async function handleMultiKeep() {
-  if (!state.pending || !state.pending.multi) return;
-  const toKeep = state.pending.phones.filter(p => state.multiSelected.has(p._idx));
-  if (!toKeep.length) return;
+  const toKeep = state.multiPhones.filter((_, i) => state.multiSelected.has(i));
+  if (!toKeep.length) { showToast('❌ Ничего не выбрано', '#ff375f'); return; }
   try {
     const res = await api('/api/inventory/keep', { method: 'POST', body: JSON.stringify({ phones: toKeep }) });
     showToast('📦 +' + toKeep.length + ' в инвентарь', '#0a84ff');
     checkNewAchievements(res);
-    state.pending.phones = state.pending.phones.filter(p => !state.multiSelected.has(p._idx));
-    state.pending.phones.forEach((p, i) => { p._idx = i; });
-    state.multiSelected.clear();
-    state.pending.phones.forEach(p => state.multiSelected.add(p._idx));
     await loadInventory();
     updateUI();
-    if (state.pending.phones.length === 0) closeResult();
-    else { const order = {}; state.meta.rarity_order.forEach((k, i) => { order[k] = i; }); const sorted = state.pending.phones.slice().sort((a, b) => order[b.rarity] - order[a.rarity]); renderMultiListSelectable(sorted, null); }
+    closeMultiOverlay();
   } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
 }
 
-async function handleMultiSellSelected() {
-  if (!state.pending || !state.pending.multi) return;
-  const toSell = state.pending.phones.filter(p => state.multiSelected.has(p._idx));
-  if (!toSell.length) return;
+async function handleMultiSell() {
+  const toSell = state.multiPhones.filter((_, i) => state.multiSelected.has(i));
+  if (!toSell.length) { showToast('❌ Ничего не выбрано', '#ff375f'); return; }
   try {
     const res = await api('/api/sell-immediate', { method: 'POST', body: JSON.stringify({ phones: toSell }) });
     state.balance = res.balance;
     updateUI();
-    showToast('💵 +' + fmt(res.total) + ' ₽ (' + toSell.length + ')', '#34c759');
+    showToast('💵 +' + fmt(res.total) + ' ₽', '#34c759');
     checkNewAchievements(res);
-    state.pending.phones = state.pending.phones.filter(p => !state.multiSelected.has(p._idx));
-    state.pending.phones.forEach((p, i) => { p._idx = i; });
-    state.multiSelected.clear();
-    state.pending.phones.forEach(p => state.multiSelected.add(p._idx));
-    if (state.pending.phones.length === 0) closeResult();
-    else { const order = {}; state.meta.rarity_order.forEach((k, i) => { order[k] = i; }); const sorted = state.pending.phones.slice().sort((a, b) => order[b.rarity] - order[a.rarity]); renderMultiListSelectable(sorted, null); }
+    closeMultiOverlay();
   } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
 }
 
-async function handleMultiSellAll() {
-  if (!state.pending || !state.pending.multi) return;
-  const phones = state.pending.phones;
-  try {
-    const res = await api('/api/sell-immediate', { method: 'POST', body: JSON.stringify({ phones }) });
-    state.balance = res.balance;
-    updateUI();
-    showToast('💵 +' + fmt(res.total) + ' ₽ (' + phones.length + ')', '#34c759');
-    checkNewAchievements(res);
-    state.multiSelected.clear();
-    closeResult();
-  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
+function closeMultiOverlay() {
+  const mo = $('multiOverlay'); if (mo) mo.classList.remove('show');
+  state.multiPhones = [];
+  state.multiSelected.clear();
+  renderStaticReels();
 }
 
+// ============ SINGLE RESULT ACTIONS ============
 async function handleKeepAll() {
   if (!state.pending) return;
   const phones = state.pending.phones;
@@ -558,13 +729,11 @@ async function handleSellAll() {
 
 function closeResult() {
   state.pending = null;
-  state.multiSelected.clear();
-  const rc = $('resultCard'); if (rc) rc.classList.remove('show');
-  removeMultiList();
-  ['resultRarity','resultFlag','resultNumber','resultOperator','resultPrice','resultDesc','resultActions'].forEach(id => { const el = $(id); if (el) el.style.display = ''; });
+  const ro = $('resultOverlay'); if (ro) ro.classList.remove('show');
   renderStaticReels();
 }
 
+// ============ RARITY OPTIONS ============
 function renderRarityOptions() {
   const wrap = $('rarityOptions'); if (!wrap || !state.meta) return;
   wrap.innerHTML = '';
@@ -586,6 +755,7 @@ function renderRarityOptions() {
   });
 }
 
+// ============ INVENTORY ============
 function renderInventoryFilters() {
   const wrap = $('invFilters'); if (!wrap || !state.meta) return;
   wrap.innerHTML = '';
@@ -617,15 +787,53 @@ function renderInventory() {
     const card = document.createElement('div');
     card.className = 'inv-card rarity-' + item.rarity + (isSel ? ' selected' : '');
     card.dataset.id = item.id;
-    card.innerHTML = '<div class="glow"></div><div class="inv-card-check">✓</div><div class="inv-card-head"><span class="inv-flag">' + item.country_flag + '</span><span class="inv-rarity-badge">' + r.name + '</span></div><div class="inv-number">' + item.number + '</div><div class="inv-op">' + item.operator_name + '</div><div class="inv-price"><span>' + fmt(item.price) + ' ₽</span><span class="sell-hint">' + (isSel ? '✓ выбран' : 'выбрать') + '</span></div>';
+
+    let multTag = '';
+    if (item.multiplier && item.multiplier > 1) {
+      multTag = '<div class="inv-multiplier-tag">✨ ×' + item.multiplier + '</div>';
+    }
+
+    card.innerHTML =
+      '<div class="glow"></div>' +
+      '<div class="inv-card-check">✓</div>' +
+      '<div class="inv-card-head">' +
+        '<span class="inv-flag">' + item.country_flag + '</span>' +
+        '<span class="inv-rarity-badge">' + r.name + '</span>' +
+      '</div>' +
+      '<div class="inv-number">' + item.number + '</div>' +
+      multTag +
+      '<div class="inv-op">' + item.operator_name + '</div>' +
+      '<div class="inv-price"><span>' + fmt(item.price) + ' ₽</span><span class="sell-hint">' + (isSel ? '✓ выбран' : 'выбрать') + '</span></div>';
+
     card.addEventListener('click', () => toggleSelect(item.id));
     grid.appendChild(card);
   });
 }
 
-function toggleSelect(id) { if (state.selected.has(id)) state.selected.delete(id); else state.selected.add(id); renderInventory(); }
+function toggleSelect(id) {
+  if (state.selected.has(id)) state.selected.delete(id);
+  else state.selected.add(id);
+  renderInventory();
+}
+
 function clearSelection() { state.selected.clear(); renderInventory(); }
 
+async function sellSelectedFromInventory() {
+  if (state.selected.size === 0) return;
+  const ids = Array.from(state.selected);
+  try {
+    const res = await api('/api/inventory/sell', { method: 'POST', body: JSON.stringify({ ids }) });
+    state.balance = res.balance;
+    state.selected.clear();
+    showToast('💵 Продано ' + res.sold + ' за ' + fmt(res.total) + ' ₽', '#34c759');
+    checkNewAchievements(res);
+    await loadInventory();
+    updateUI();
+    renderInventory();
+  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
+}
+
+// ============ COUNTRIES ============
 function renderCountries() {
   const list = $('countryList'); if (!list || !state.meta) return;
   list.innerHTML = '';
@@ -651,6 +859,7 @@ function renderCountries() {
   });
 }
 
+// ============ CRAFT ============
 async function loadCraft() {
   const list = $('craftList'); if (!list) return;
   list.innerHTML = '<div style="padding:30px;text-align:center;color:#6e6e85;">Загрузка...</div>';
@@ -694,6 +903,7 @@ async function confirmCraft() {
   } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
 }
 
+// ============ LEADERBOARD ============
 async function loadLeaderboard() {
   const list = $('lbList'); if (!list) return;
   list.innerHTML = '<div style="padding:30px;text-align:center;color:#6e6e85;">Загрузка...</div>';
@@ -717,6 +927,7 @@ async function loadLeaderboard() {
   } catch (e) { list.innerHTML = '<div style="padding:30px;text-align:center;color:#ff375f;">' + e.message + '</div>'; }
 }
 
+// ============ BONUS ============
 async function loadBonus() {
   try {
     const data = await api('/api/daily-bonus/status');
@@ -736,7 +947,7 @@ async function loadBonus() {
       btn.textContent = 'Ждать';
       startBonusTimer(data.seconds_left);
     }
-  } catch (e) { console.error('Bonus load error', e); }
+  } catch (e) {}
 }
 
 function startBonusTimer(secondsLeft) {
@@ -767,6 +978,7 @@ async function claimBonus() {
   } catch (e) { showToast('❌ ' + e.message, '#ff375f'); loadBonus(); }
 }
 
+// ============ ACHIEVEMENTS ============
 async function loadAchievements() {
   const list = $('achList'); if (!list) return;
   list.innerHTML = '<div style="padding:20px;text-align:center;color:#6e6e85;">Загрузка...</div>';
@@ -786,6 +998,7 @@ async function loadAchievements() {
   } catch (e) { list.innerHTML = '<div style="padding:20px;text-align:center;color:#ff375f;">' + e.message + '</div>'; }
 }
 
+// ============ MONEY ============
 let moneyState = { target: null };
 
 function openMoneyModal() {
@@ -830,7 +1043,7 @@ function sendMoneyConfirm() {
   if (amount <= 0) { showToast('❌ Введи сумму', '#ff375f'); return; }
   if (amount > state.balance) { showToast('❌ У тебя недостаточно денег', '#ff375f'); return; }
   const mi = $('confirmIcon'); if (mi) mi.textContent = '💸';
-  const text = 'Перевести ' + fmt(amount) + ' ₽ игроку @' + moneyState.target.username + ' (' + (moneyState.target.first_name || '') + ')?\n\nПродолжить?';
+  const text = 'Перевести ' + fmt(amount) + ' ₽ игроку @' + moneyState.target.username + ' (' + (moneyState.target.first_name || '') + ')?';
   const ct = $('tradeConfirmText'); if (ct) ct.textContent = text;
   const cm = $('tradeConfirmModal'); if (cm) cm.classList.add('show');
   window._confirmAction = doSendMoney;
@@ -844,14 +1057,7 @@ async function doSendMoney() {
   try {
     await api('/api/trade/create', {
       method: 'POST',
-      body: JSON.stringify({
-        to_username: moneyState.target.username,
-        from_items: [],
-        to_items: [],
-        from_money: amount,
-        to_money: 0,
-        message: message
-      })
+      body: JSON.stringify({ to_username: moneyState.target.username, from_items: [], to_items: [], from_money: amount, to_money: 0, message: message })
     });
     const cm = $('tradeConfirmModal'); if (cm) cm.classList.remove('show');
     closeMoneyModal();
@@ -861,13 +1067,8 @@ async function doSendMoney() {
   } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
 }
 
-let tradeState = {
-  targetUser: null,
-  targetItems: [],
-  mySelected: new Set(),
-  hisSelected: new Set(),
-  currentTab: 'incoming',
-};
+// ============ TRADES ============
+let tradeState = { targetUser: null, targetItems: [], mySelected: new Set(), hisSelected: new Set(), currentTab: 'incoming' };
 
 function openTradeModal() {
   const m = $('tradeModal'); if (m) m.classList.add('show');
@@ -957,7 +1158,7 @@ function sendTradeConfirm() {
   if (myMoney > state.balance) { showToast('❌ У тебя недостаточно денег', '#ff375f'); return; }
   if (tradeState.mySelected.size === 0 && tradeState.hisSelected.size === 0 && myMoney === 0 && hisMoney === 0) { showToast('❌ Добавь номера или деньги', '#ff375f'); return; }
   const mi = $('confirmIcon'); if (mi) mi.textContent = '⚠️';
-  const text = 'Ты отправляешь обмен игроку @' + tradeState.targetUser.username + ':\n\n📤 Отдаёшь: ' + tradeState.mySelected.size + ' номеров' + (myMoney > 0 ? ' + ' + fmt(myMoney) + ' ₽' : '') + '\n📥 Получаешь: ' + tradeState.hisSelected.size + ' номеров' + (hisMoney > 0 ? ' + ' + fmt(hisMoney) + ' ₽' : '') + '\n\nПродолжить?';
+  const text = 'Обмен игроку @' + tradeState.targetUser.username + ':\n📤 ' + tradeState.mySelected.size + ' номеров' + (myMoney > 0 ? ' + ' + fmt(myMoney) + ' ₽' : '') + '\n📥 ' + tradeState.hisSelected.size + ' номеров' + (hisMoney > 0 ? ' + ' + fmt(hisMoney) + ' ₽' : '');
   const tt = $('tradeConfirmText'); if (tt) tt.textContent = text;
   const cm = $('tradeConfirmModal'); if (cm) cm.classList.add('show');
   window._confirmAction = doSendTrade;
@@ -983,7 +1184,7 @@ async function loadTrades() {
     if (tradeState.currentTab === 'incoming') {
       const data = await api('/api/trade/incoming');
       const cnt = $('tradeInCount'); if (cnt) cnt.textContent = data.trades.length;
-      if (!data.trades.length) { list.innerHTML = '<div style="padding:20px;text-align:center;color:#6e6e85;font-size:12px;">Нет входящих обменов</div>'; return; }
+      if (!data.trades.length) { list.innerHTML = '<div style="padding:20px;text-align:center;color:#6e6e85;font-size:12px;">Нет входящих</div>'; return; }
       list.innerHTML = '';
       data.trades.forEach(t => {
         const el = document.createElement('div');
@@ -997,7 +1198,7 @@ async function loadTrades() {
           html += '</div>';
         }
         if (t.from_money > 0) html += '<div style="font-size:12px;font-weight:900;color:#ffd60a;margin-bottom:8px;">💰 + ' + fmt(t.from_money) + ' ₽</div>';
-        html += '<div style="font-size:11px;margin-bottom:6px;font-weight:800;">📥 Он хочет от тебя:</div>';
+        html += '<div style="font-size:11px;margin-bottom:6px;font-weight:800;">📥 Хочет от тебя:</div>';
         if (t.to_items.length) {
           html += '<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px;">';
           t.to_items.forEach(i => { html += '<div style="font-family:monospace;font-size:11px;padding:4px 8px;background:rgba(255,255,255,.04);border-radius:6px;">' + i.country_flag + ' ' + i.number + ' · ' + fmt(i.price) + ' ₽</div>'; });
@@ -1012,7 +1213,7 @@ async function loadTrades() {
         b.addEventListener('click', async () => {
           try {
             await api('/api/trade/' + b.dataset.id + '/respond', { method: 'POST', body: JSON.stringify({ action: b.dataset.act }) });
-            showToast(b.dataset.act === 'accept' ? '✅ Обмен принят' : '❌ Отклонён', '#34c759');
+            showToast(b.dataset.act === 'accept' ? '✅ Принят' : '❌ Отклонён', '#34c759');
             await loadInventory();
             await loadProfile();
             updateUI();
@@ -1023,12 +1224,12 @@ async function loadTrades() {
       });
     } else {
       const data = await api('/api/trade/outgoing');
-      if (!data.trades.length) { list.innerHTML = '<div style="padding:20px;text-align:center;color:#6e6e85;font-size:12px;">Нет исходящих обменов</div>'; return; }
+      if (!data.trades.length) { list.innerHTML = '<div style="padding:20px;text-align:center;color:#6e6e85;font-size:12px;">Нет исходящих</div>'; return; }
       list.innerHTML = '';
       data.trades.forEach(t => {
         const el = document.createElement('div');
         el.className = 'trade-item';
-        el.innerHTML = '<div class="trade-head">📤 Кому: <b>' + t.to_name + '</b> (@' + t.to_username + ')</div><div style="font-size:11px;color:#6e6e85;">Ожидает ответа...</div>';
+        el.innerHTML = '<div class="trade-head">📤 Кому: <b>' + t.to_name + '</b> (@' + t.to_username + ')</div><div style="font-size:11px;color:#6e6e85;">Ожидает...</div>';
         list.appendChild(el);
       });
     }
@@ -1045,6 +1246,7 @@ function setupTradeTabs() {
   });
 }
 
+// ============ PROMO ============
 function togglePromoBar() {
   const bar = $('promoBar'); if (!bar) return;
   bar.classList.toggle('open');
@@ -1069,6 +1271,7 @@ async function activatePromo() {
   } catch (e) { showToast('❌ ' + e.message, '#ff375f'); input.value = ''; }
 }
 
+// ============ TABS ============
 function setupTabs() {
   const tabs = document.querySelectorAll('.tab');
   tabs.forEach(tab => {
@@ -1095,6 +1298,7 @@ function setupTabs() {
   });
 }
 
+// ============ INIT ============
 async function init() {
   try {
     const ok = await loadMeta();
@@ -1113,39 +1317,57 @@ async function init() {
     setupTradeTabs();
     loadBonus();
 
+    // SPIN
     const spinBtn = $('spinBtn'); if (spinBtn) spinBtn.addEventListener('click', spinOne);
     const spinBtn5 = $('spinBtn5'); if (spinBtn5) spinBtn5.addEventListener('click', spinFive);
-    const invSelClear = $('invSelClear'); if (invSelClear) invSelClear.addEventListener('click', clearSelection);
+
+    // SINGLE RESULT
     const btnKeep = $('btnKeep'); if (btnKeep) btnKeep.addEventListener('click', handleKeepAll);
     const btnSellNow = $('btnSellNow'); if (btnSellNow) btnSellNow.addEventListener('click', handleSellAll);
 
+    // MULTI RESULT
+    const mk = $('multiKeepBtn'); if (mk) mk.addEventListener('click', handleMultiKeep);
+    const ms = $('multiSellBtn'); if (ms) ms.addEventListener('click', handleMultiSell);
+
+    // INVENTORY
+    const invSelClear = $('invSelClear'); if (invSelClear) invSelClear.addEventListener('click', clearSelection);
+    const invSellBtn = $('invSellBtn'); if (invSellBtn) invSellBtn.addEventListener('click', sellSelectedFromInventory);
+
+    // LUCK PILL
+    const luckPill = $('luckPill'); if (luckPill) luckPill.addEventListener('click', openLuckModal);
+    const luckOk = $('luckOkBtn'); if (luckOk) luckOk.addEventListener('click', () => { const m = $('luckModal'); if (m) m.classList.remove('show'); });
+
+    // CRAFT
     const craftCancel = $('craftCancel'); if (craftCancel) craftCancel.addEventListener('click', () => { const m = $('craftModal'); if (m) m.classList.remove('show'); craftTarget = null; });
     const craftConfirm = $('craftConfirm'); if (craftConfirm) craftConfirm.addEventListener('click', confirmCraft);
     const craftModal = $('craftModal'); if (craftModal) craftModal.addEventListener('click', e => { if (e.target === craftModal) { craftModal.classList.remove('show'); craftTarget = null; } });
 
+    // ACH
     const achOk = $('achOk'); if (achOk) achOk.addEventListener('click', () => { const m = $('achModal'); if (m) m.classList.remove('show'); });
     const bonusBtn = $('bonusBtn'); if (bonusBtn) bonusBtn.addEventListener('click', claimBonus);
 
+    // PROMO
     const promoHead = $('promoBarHead'); if (promoHead) promoHead.addEventListener('click', togglePromoBar);
     const promoBtn = $('promoBtn'); if (promoBtn) promoBtn.addEventListener('click', activatePromo);
     const promoInput = $('promoInput');
     if (promoInput) promoInput.addEventListener('keydown', e => { if (e.key === 'Enter') activatePromo(); });
 
+    // MONEY
     const openMoneyBtn = $('openMoneyBtn'); if (openMoneyBtn) openMoneyBtn.addEventListener('click', openMoneyModal);
     const moneyCancel = $('moneyCancel'); if (moneyCancel) moneyCancel.addEventListener('click', closeMoneyModal);
     const moneyFindBtn = $('moneyFindBtn'); if (moneyFindBtn) moneyFindBtn.addEventListener('click', findMoneyUser);
     const moneySend = $('moneySend'); if (moneySend) moneySend.addEventListener('click', sendMoneyConfirm);
     document.querySelectorAll('.money-quick-btn').forEach(b => {
-      b.addEventListener('click', () => {
-        const am = $('moneyAmount'); if (am) am.value = b.dataset.amt;
-      });
+      b.addEventListener('click', () => { const am = $('moneyAmount'); if (am) am.value = b.dataset.amt; });
     });
 
+    // TRADE
     const openTradeBtn = $('openTradeBtn'); if (openTradeBtn) openTradeBtn.addEventListener('click', openTradeModal);
     const tradeCancel = $('tradeCancel'); if (tradeCancel) tradeCancel.addEventListener('click', closeTradeModal);
     const tradeFindBtn = $('tradeFindBtn'); if (tradeFindBtn) tradeFindBtn.addEventListener('click', findTradeUser);
     const tradeSend = $('tradeSend'); if (tradeSend) tradeSend.addEventListener('click', sendTradeConfirm);
 
+    // CONFIRM
     const tradeConfirmCancel = $('tradeConfirmCancel');
     if (tradeConfirmCancel) tradeConfirmCancel.addEventListener('click', () => { const m = $('tradeConfirmModal'); if (m) m.classList.remove('show'); });
     const tradeConfirmOk = $('tradeConfirmOk');
@@ -1156,19 +1378,35 @@ async function init() {
       }
     });
 
-    console.log('✅ App initialized (Финал + переводы + обмены)');
+    // SELL MODAL (индивидуальная продажа из инвентаря)
+    const modalCancel = $('modalCancel'); if (modalCancel) modalCancel.addEventListener('click', closeSellModal);
+    const modalSell = $('modalSell'); if (modalSell) modalSell.addEventListener('click', confirmSell);
+    const sellModal = $('sellModal'); if (sellModal) sellModal.addEventListener('click', e => { if (e.target === sellModal) closeSellModal(); });
+
+    // Периодическое обновление статуса (бусты)
+    setInterval(refreshStatus, 60000);
+
+    console.log('✅ App initialized (множители + удача)');
   } catch (e) {
     console.error('❌ Init error:', e);
     if (typeof showToast === 'function') showToast('Ошибка: ' + e.message, '#ff375f');
   }
 }
 
+// ============ SELL MODAL (заглушка, если понадобится) ============
+let sellTarget = null;
+function closeSellModal() { const m = $('sellModal'); if (m) m.classList.remove('show'); sellTarget = null; }
+async function confirmSell() { closeSellModal(); }
+
 async function boot() {
   try {
     const res = await fetch(API_BASE + '/api/status', { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
-      if (data.maintenance) { showMaintenance(data.maintenance_text || 'Технические работы'); return; }
+      if (data.maintenance) {
+        showMaintenance(data.maintenance_text || 'Технические работы');
+        return;
+      }
     }
   } catch (e) { console.log('Status check failed:', e); }
   await init();
