@@ -1,9 +1,10 @@
 // ============================================================
-// Phone Numbers — Финальная версия (автосохранение + кнопки в overlay)
+// Phone Numbers — Финальная версия (всё вместе)
 // ============================================================
 
 const API_BASE = 'https://phone-game.onrender.com';
 const TOKEN_KEY = 'pn_user_token';
+const SOUND_KEY = 'pn_sound_enabled';
 
 const state = {
   token: localStorage.getItem(TOKEN_KEY) || '',
@@ -26,12 +27,131 @@ const state = {
   lbMode: 'balance',
   bonusTimer: null,
   luckInfo: null,
-  boostTimers: {}
+  boostTimers: {},
+  marketTab: 'all',
+  soundEnabled: localStorage.getItem(SOUND_KEY) !== '0',
 };
 
 const $ = id => document.getElementById(id);
 const fmt = n => Math.round(n).toLocaleString('ru-RU');
 
+// ============ ЗВУКИ (Web Audio API) ============
+let audioCtx = null;
+
+function getAudioCtx() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { return null; }
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playTone(freq, duration, type = 'sine', volume = 0.15) {
+  if (!state.soundEnabled) return;
+  const ctx = getAudioCtx(); if (!ctx) return;
+  try {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  } catch (e) {}
+}
+
+function playSound(name) {
+  if (!state.soundEnabled) return;
+  switch (name) {
+    case 'spin':
+      for (let i = 0; i < 15; i++) setTimeout(() => playTone(400 + Math.random() * 300, 0.05, 'square', 0.05), i * 180);
+      break;
+    case 'common': playTone(300, 0.15, 'sine', 0.1); break;
+    case 'rare':
+      playTone(500, 0.12, 'triangle', 0.12);
+      setTimeout(() => playTone(650, 0.15, 'triangle', 0.12), 100);
+      break;
+    case 'epic':
+      playTone(500, 0.1, 'triangle', 0.13);
+      setTimeout(() => playTone(700, 0.1, 'triangle', 0.13), 80);
+      setTimeout(() => playTone(900, 0.2, 'triangle', 0.15), 160);
+      break;
+    case 'mythic':
+      playTone(600, 0.1, 'sawtooth', 0.12);
+      setTimeout(() => playTone(800, 0.1, 'sawtooth', 0.12), 80);
+      setTimeout(() => playTone(1000, 0.1, 'sawtooth', 0.13), 160);
+      setTimeout(() => playTone(1200, 0.3, 'sawtooth', 0.15), 240);
+      break;
+    case 'legendary':
+      playTone(600, 0.15, 'sine', 0.15);
+      setTimeout(() => playTone(800, 0.15, 'sine', 0.15), 120);
+      setTimeout(() => playTone(1000, 0.15, 'sine', 0.15), 240);
+      setTimeout(() => playTone(1300, 0.5, 'sine', 0.18), 360);
+      break;
+    case 'secret':
+      for (let i = 0; i < 8; i++) setTimeout(() => playTone(500 + i * 150, 0.15, 'sine', 0.15), i * 80);
+      setTimeout(() => playTone(1800, 0.8, 'sine', 0.2), 700);
+      break;
+    case 'sell':
+      playTone(800, 0.08, 'sine', 0.15);
+      setTimeout(() => playTone(1000, 0.08, 'sine', 0.15), 60);
+      setTimeout(() => playTone(1200, 0.15, 'sine', 0.15), 120);
+      break;
+    case 'buy':
+      playTone(400, 0.1, 'sine', 0.12);
+      setTimeout(() => playTone(600, 0.15, 'sine', 0.15), 80);
+      break;
+    case 'ach':
+      playTone(700, 0.15, 'sine', 0.15);
+      setTimeout(() => playTone(900, 0.15, 'sine', 0.15), 150);
+      setTimeout(() => playTone(1100, 0.4, 'sine', 0.18), 300);
+      break;
+    case 'error': playTone(200, 0.3, 'sawtooth', 0.1); break;
+    case 'click': playTone(600, 0.04, 'square', 0.06); break;
+    case 'open': playTone(500, 0.08, 'sine', 0.08); break;
+  }
+}
+
+function vibrate(type) {
+  if (!state.soundEnabled) return;
+  try {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (!tg || !tg.HapticFeedback) return;
+    switch (type) {
+      case 'light': tg.HapticFeedback.impactOccurred('light'); break;
+      case 'medium': tg.HapticFeedback.impactOccurred('medium'); break;
+      case 'heavy': tg.HapticFeedback.impactOccurred('heavy'); break;
+      case 'success': tg.HapticFeedback.notificationOccurred('success'); break;
+      case 'error': tg.HapticFeedback.notificationOccurred('error'); break;
+      case 'warning': tg.HapticFeedback.notificationOccurred('warning'); break;
+    }
+  } catch (e) {}
+}
+
+function vibrateByRarity(rarity) {
+  switch (rarity) {
+    case 'common': break;
+    case 'rare': vibrate('light'); break;
+    case 'epic': vibrate('medium'); break;
+    case 'mythic': vibrate('heavy'); break;
+    case 'legendary':
+      vibrate('success');
+      setTimeout(() => vibrate('heavy'), 200);
+      break;
+    case 'secret':
+      vibrate('success');
+      setTimeout(() => vibrate('heavy'), 200);
+      setTimeout(() => vibrate('heavy'), 400);
+      setTimeout(() => vibrate('heavy'), 600);
+      break;
+  }
+}
+
+// ============ HELPERS ============
 function getRarity(key) {
   if (!state.meta) return { name: '—', color: '#8e8e93', desc: '' };
   return state.meta.rarities.find(r => r.key === key) || { name: key, color: '#8e8e93', desc: '' };
@@ -59,10 +179,24 @@ async function api(path, options = {}) {
 async function authenticate() {
   const tg = window.Telegram && window.Telegram.WebApp;
   if (!tg || !tg.initData) throw new Error('Открой игру через бота');
+
+  // Проверяем реферальный код из URL
+  let refCode = null;
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    refCode = urlParams.get('start');
+    if (!refCode && tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
+      refCode = tg.initDataUnsafe.start_param;
+    }
+  } catch (e) {}
+
+  const body = { init_data: tg.initData };
+  if (refCode && refCode.startsWith('ref_')) body.ref_code = refCode;
+
   const res = await fetch(API_BASE + '/api/auth', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ init_data: tg.initData })
+    body: JSON.stringify(body)
   });
   if (!res.ok) throw new Error('Auth failed');
   const data = await res.json();
@@ -136,6 +270,8 @@ function showMaintenance(text) {
 }
 
 function showAchievementPopup(ach) {
+  playSound('ach');
+  vibrate('success');
   const n = $('achName'); if (n) n.textContent = ach.name;
   const d = $('achDesc'); if (d) d.textContent = ach.desc;
   const r = $('achReward'); if (r) r.textContent = '+' + fmt(ach.reward) + ' ₽';
@@ -149,10 +285,12 @@ function checkNewAchievements(res) {
   }
 }
 
+// ============ UI UPDATE ============
 function updateUI() {
   const b = $('balance'); if (b) b.textContent = fmt(state.balance) + ' ₽';
   const s = $('spinCount'); if (s) s.textContent = fmt(state.spinsTotal);
   const t = $('tabInvCount'); if (t) t.textContent = state.inventory.length;
+  const smi = $('smiInvCount'); if (smi) smi.textContent = state.inventory.length;
   updateSpinButtons();
   updateSelectionBar();
   updateLuckPill();
@@ -201,6 +339,7 @@ function updateLuckPill() {
 
 function openLuckModal() {
   if (!state.luckInfo) return;
+  playSound('click');
   const info = state.luckInfo;
   const m = $('luckModal'); if (m) m.classList.add('show');
   const nx = $('luckModalNext'); if (nx) nx.textContent = 'Следующая удача ×' + info.next_mult;
@@ -264,54 +403,83 @@ async function refreshStatus() {
   } catch (e) {}
 }
 
-function renderCountrySelector() {
-  const wrap = $('countrySelector'); if (!wrap || !state.meta) return;
-  wrap.innerHTML = '';
-  state.meta.countries.forEach(c => {
-    const el = document.createElement('div');
-    el.className = 'country-chip' + (c.code === state.country ? ' active' : '');
-    el.innerHTML = '<span class="cf">' + c.flag + '</span><span class="cn">' + c.name + '</span>';
-    el.addEventListener('click', () => {
-      if (state.spinning) return;
-      state.country = c.code;
-      state.operatorCode = null;
-      document.querySelectorAll('#countrySelector .country-chip').forEach(n => n.classList.remove('active'));
-      el.classList.add('active');
-      renderOperatorSelector();
-      renderStaticReels();
-    });
-    wrap.appendChild(el);
-  });
+// ============ SIDE MENU ============
+function openSideMenu() {
+  playSound('open');
+  const menu = $('sideMenu');
+  const bg = $('sideMenuBackdrop');
+  if (menu) menu.classList.add('open');
+  if (bg) bg.classList.add('show');
 }
 
-function renderOperatorSelector() {
-  const wrap = $('operatorSelector'); if (!wrap || !state.meta) return;
-  wrap.innerHTML = '';
-  const country = getCountry(state.country);
-  const anyEl = document.createElement('div');
-  anyEl.className = 'country-chip op-chip-mini' + (state.operatorCode === null ? ' active' : '');
-  anyEl.innerHTML = '<span class="cf">🎲</span><span class="cn">Любой</span>';
-  anyEl.addEventListener('click', () => {
-    if (state.spinning) return;
-    state.operatorCode = null;
-    renderOperatorSelector();
-    renderStaticReels();
-  });
-  wrap.appendChild(anyEl);
-  (country.operators || []).forEach(op => {
-    const el = document.createElement('div');
-    el.className = 'country-chip op-chip-mini' + (state.operatorCode === op.code ? ' active' : '');
-    el.innerHTML = '<span class="cn">' + op.name + '</span>';
-    el.addEventListener('click', () => {
-      if (state.spinning) return;
-      state.operatorCode = op.code;
-      renderOperatorSelector();
-      renderStaticReels();
-    });
-    wrap.appendChild(el);
-  });
+function closeSideMenu() {
+  const menu = $('sideMenu');
+  const bg = $('sideMenuBackdrop');
+  if (menu) menu.classList.remove('open');
+  if (bg) bg.classList.remove('show');
 }
 
+function setupSideMenu() {
+  const burger = $('burgerBtn');
+  const close = $('sideMenuClose');
+  const bg = $('sideMenuBackdrop');
+  if (burger) burger.addEventListener('click', openSideMenu);
+  if (close) close.addEventListener('click', closeSideMenu);
+  if (bg) bg.addEventListener('click', closeSideMenu);
+
+  document.querySelectorAll('.side-menu-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const page = item.dataset.page;
+      closeSideMenu();
+      switchPage(page);
+    });
+  });
+
+  // Кнопка звука
+  const soundBtn = $('soundToggle');
+  if (soundBtn) {
+    soundBtn.addEventListener('click', toggleSound);
+  }
+}
+
+function toggleSound() {
+  state.soundEnabled = !state.soundEnabled;
+  localStorage.setItem(SOUND_KEY, state.soundEnabled ? '1' : '0');
+  const icon = $('soundIcon');
+  const text = $('soundText');
+  if (icon) icon.textContent = state.soundEnabled ? '🔊' : '🔇';
+  if (text) text.textContent = state.soundEnabled ? 'Звук вкл' : 'Звук выкл';
+  if (state.soundEnabled) playSound('click');
+}
+
+// ============ PAGE SWITCHING ============
+function switchPage(pageName) {
+  // Табы сверху
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.page === pageName);
+  });
+  // Боковое меню
+  document.querySelectorAll('.side-menu-item').forEach(t => {
+    t.classList.toggle('active', t.dataset.page === pageName);
+  });
+  // Страницы
+  document.querySelectorAll('.page').forEach(p => {
+    p.classList.toggle('active', p.id === 'page-' + pageName);
+  });
+
+  // Загружаем данные для нужной страницы
+  if (pageName === 'inventory') renderInventory();
+  if (pageName === 'countries') renderCountries();
+  if (pageName === 'craft') loadCraft();
+  if (pageName === 'top') loadLeaderboard();
+  if (pageName === 'profile') { loadTrades(); loadAchievements(); }
+  if (pageName === 'quests') loadQuests();
+  if (pageName === 'market') loadMarket();
+  if (pageName === 'dice') loadDice();
+  if (pageName === 'referral') loadReferral();
+}
+
+// ============ REELS ============
 function randomDigit() { return String(Math.floor(Math.random() * 10)); }
 
 function fakePhone(country) {
@@ -435,15 +603,15 @@ function showSpinControls() {
   const _sb5 = $('spinBtn5'); if (_sb5) _sb5.disabled = false;
 }
 
-// ============ СПИН 1 ============
+// ============ SPIN 1 ============
 async function spinOne() {
   if (state.spinning) return;
   let cost = state.meta.spin_costs[state.minRarity] || 500;
   if (state.meta.boost_discount && state.meta.boost_discount.active) cost = Math.floor(cost * 0.5);
   if (state.meta.boost_golden && state.meta.boost_golden.active) cost = Math.floor(cost * 0.5);
-  if (state.balance < cost) { showToast('❌ Недостаточно средств', '#ff375f'); return; }
+  if (state.balance < cost) { playSound('error'); showToast('❌ Недостаточно средств', '#ff375f'); return; }
 
-  // Автосохранение предыдущего одиночного результата
+  // Автосохранение предыдущего
   if (state.pending && state.pending.phones && state.pending.phones.length) {
     try {
       await api('/api/inventory/keep', { method: 'POST', body: JSON.stringify({ phones: state.pending.phones }) });
@@ -452,10 +620,13 @@ async function spinOne() {
     } catch (e) {}
     state.pending = null;
   }
-  // Автосохранение прошлого ×5
   if (state.multiPhones.length && !state.multiAutoSaveDone) {
     await autoSaveMulti();
   }
+
+  // Разблокировка звука
+  getAudioCtx();
+  playSound('spin');
 
   state.spinning = true;
   state.balance -= cost;
@@ -483,6 +654,7 @@ async function spinOne() {
   } catch (e) {
     state.balance += cost;
     updateUI();
+    playSound('error');
     showToast('❌ ' + e.message, '#ff375f');
     state.spinning = false;
     showSpinControls();
@@ -493,9 +665,10 @@ async function spinOne() {
 async function finishSpinSingle(phone) {
   const r = getRarity(phone.rarity);
   const ro = $('resultOverlay'); if (ro) ro.classList.add('show');
-
-  // Прячем кнопки круток
   hideSpinControls();
+
+  playSound(phone.rarity);
+  vibrateByRarity(phone.rarity);
 
   const rr = $('resultRarity');
   if (rr) { rr.textContent = r.name; rr.style.color = r.color; rr.style.textShadow = '0 0 16px ' + r.color; }
@@ -536,16 +709,15 @@ async function finishSpinSingle(phone) {
   if (phone.rarity === 'legendary' || phone.rarity === 'secret' || phone.rarity === 'mythic') fireworks(r.color);
 }
 
-// ============ СПИН ×5 ============
+// ============ SPIN ×5 ============
 async function spinFive() {
   if (state.spinning) return;
   let cost = state.meta.spin_costs[state.minRarity] || 500;
   if (state.meta.boost_discount && state.meta.boost_discount.active) cost = Math.floor(cost * 0.5);
   if (state.meta.boost_golden && state.meta.boost_golden.active) cost = Math.floor(cost * 0.5);
   cost = cost * 5;
-  if (state.balance < cost) { showToast('❌ Недостаточно средств', '#ff375f'); return; }
+  if (state.balance < cost) { playSound('error'); showToast('❌ Недостаточно средств', '#ff375f'); return; }
 
-  // Автосохранение одиночного
   if (state.pending && state.pending.phones && state.pending.phones.length) {
     try {
       await api('/api/inventory/keep', { method: 'POST', body: JSON.stringify({ phones: state.pending.phones }) });
@@ -554,10 +726,12 @@ async function spinFive() {
     } catch (e) {}
     state.pending = null;
   }
-  // Автосохранение прошлого ×5
   if (state.multiPhones.length && !state.multiAutoSaveDone) {
     await autoSaveMulti();
   }
+
+  getAudioCtx();
+  playSound('spin');
 
   state.spinning = true;
   state.balance -= cost;
@@ -586,6 +760,7 @@ async function spinFive() {
   } catch (e) {
     state.balance += cost;
     updateUI();
+    playSound('error');
     showToast('❌ ' + e.message, '#ff375f');
     state.spinning = false;
     showSpinControls();
@@ -600,9 +775,10 @@ function finishSpinFive(phones) {
 
   renderMultiList(phones);
   const mo = $('multiOverlay'); if (mo) mo.classList.add('show');
-
-  // Прячем кнопки круток
   hideSpinControls();
+
+  playSound('spin');
+  vibrate('medium');
 
   const total = phones.reduce((s, p) => s + p.price, 0);
   const msub = $('multiSubtitle'); if (msub) msub.textContent = 'Всего: ' + fmt(total) + ' ₽';
@@ -615,6 +791,7 @@ function finishSpinFive(phones) {
   const topRarity = sorted[0].rarity;
   if (topRarity === 'legendary' || topRarity === 'secret' || topRarity === 'mythic') {
     fireworks(getRarity(topRarity).color);
+    vibrateByRarity(topRarity);
   }
 }
 
@@ -643,6 +820,7 @@ function renderMultiList(phones) {
         '<div class="multi-price">' + fmt(p.price) + ' ₽</div>' +
       '</div>';
     card.addEventListener('click', () => {
+      playSound('click');
       if (state.multiSelected.has(i)) state.multiSelected.delete(i);
       else state.multiSelected.add(i);
       card.classList.toggle('selected', state.multiSelected.has(i));
@@ -664,30 +842,32 @@ async function autoSaveMulti() {
 
 async function handleMultiKeep() {
   const toKeep = state.multiPhones.filter((_, i) => state.multiSelected.has(i));
-  if (!toKeep.length) { showToast('❌ Ничего не выбрано', '#ff375f'); return; }
+  if (!toKeep.length) { playSound('error'); showToast('❌ Ничего не выбрано', '#ff375f'); return; }
   try {
     const res = await api('/api/inventory/keep', { method: 'POST', body: JSON.stringify({ phones: toKeep }) });
+    playSound('buy');
     showToast('📦 +' + toKeep.length + ' в инвентарь', '#0a84ff');
     checkNewAchievements(res);
     state.multiAutoSaveDone = true;
     await loadInventory();
     updateUI();
     closeMultiOverlay();
-  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
+  } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
 }
 
 async function handleMultiSell() {
   const toSell = state.multiPhones.filter((_, i) => state.multiSelected.has(i));
-  if (!toSell.length) { showToast('❌ Ничего не выбрано', '#ff375f'); return; }
+  if (!toSell.length) { playSound('error'); showToast('❌ Ничего не выбрано', '#ff375f'); return; }
   try {
     const res = await api('/api/sell-immediate', { method: 'POST', body: JSON.stringify({ phones: toSell }) });
     state.balance = res.balance;
     updateUI();
+    playSound('sell');
     showToast('💵 +' + fmt(res.total) + ' ₽', '#34c759');
     checkNewAchievements(res);
     state.multiAutoSaveDone = true;
     closeMultiOverlay();
-  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
+  } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
 }
 
 async function closeMultiOverlay() {
@@ -699,7 +879,6 @@ async function closeMultiOverlay() {
   state.multiPhones = [];
   state.multiSelected.clear();
   state.multiAutoSaveDone = false;
-  // Возвращаем кнопки круток
   showSpinControls();
   renderStaticReels();
 }
@@ -710,16 +889,16 @@ async function handleKeepAll() {
   const phones = state.pending.phones;
   try {
     const res = await api('/api/inventory/keep', { method: 'POST', body: JSON.stringify({ phones }) });
+    playSound('buy');
     showToast('📦 +' + phones.length + ' в инвентарь', '#0a84ff');
     checkNewAchievements(res);
     state.pending = null;
     await loadInventory();
     updateUI();
-    // Скрываем overlay + возвращаем кнопки
     const ro = $('resultOverlay'); if (ro) ro.classList.remove('show');
     showSpinControls();
     renderStaticReels();
-  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
+  } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
 }
 
 async function handleSellAll() {
@@ -729,29 +908,24 @@ async function handleSellAll() {
     const res = await api('/api/sell-immediate', { method: 'POST', body: JSON.stringify({ phones }) });
     state.balance = res.balance;
     updateUI();
+    playSound('sell');
     showToast('💵 +' + fmt(res.total) + ' ₽', '#34c759');
     checkNewAchievements(res);
     state.pending = null;
     const ro = $('resultOverlay'); if (ro) ro.classList.remove('show');
     showSpinControls();
     renderStaticReels();
-  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
+  } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
 }
 
 async function closeResult() {
-  // Автосохранение если игрок закрыл без выбора
   if (state.pending && state.pending.phones && state.pending.phones.length) {
     try {
-      await api('/api/inventory/keep', {
-        method: 'POST',
-        body: JSON.stringify({ phones: state.pending.phones })
-      });
+      await api('/api/inventory/keep', { method: 'POST', body: JSON.stringify({ phones: state.pending.phones }) });
       showToast('📦 Номер сохранён в инвентарь', '#0a84ff');
       await loadInventory();
       updateUI();
-    } catch (e) {
-      console.error('Auto-save failed', e);
-    }
+    } catch (e) {}
   }
   state.pending = null;
   const ro = $('resultOverlay'); if (ro) ro.classList.remove('show');
@@ -759,6 +933,7 @@ async function closeResult() {
   renderStaticReels();
 }
 
+// ============ RARITY OPTIONS ============
 function renderRarityOptions() {
   const wrap = $('rarityOptions'); if (!wrap || !state.meta) return;
   wrap.innerHTML = '';
@@ -771,6 +946,7 @@ function renderRarityOptions() {
     el.innerHTML = '<span class="dot"></span><span class="name">' + r.name + '</span><span class="price">' + fmt(cost) + '</span>';
     el.addEventListener('click', () => {
       if (state.spinning) return;
+      playSound('click');
       state.minRarity = key;
       document.querySelectorAll('.rarity-opt').forEach(n => n.classList.remove('active'));
       el.classList.add('active');
@@ -780,6 +956,7 @@ function renderRarityOptions() {
   });
 }
 
+// ============ INVENTORY ============
 function renderInventoryFilters() {
   const wrap = $('invFilters'); if (!wrap || !state.meta) return;
   wrap.innerHTML = '';
@@ -790,7 +967,7 @@ function renderInventoryFilters() {
     const el = document.createElement('div');
     el.className = 'filter-chip' + (state.invFilter === f.key ? ' active' : '');
     el.textContent = f.name + ' (' + (counts[f.key] || 0) + ')';
-    el.addEventListener('click', () => { state.invFilter = f.key; renderInventoryFilters(); renderInventory(); });
+    el.addEventListener('click', () => { playSound('click'); state.invFilter = f.key; renderInventoryFilters(); renderInventory(); });
     wrap.appendChild(el);
   });
 }
@@ -813,13 +990,22 @@ function renderInventory() {
     card.dataset.id = item.id;
     let multTag = '';
     if (item.multiplier && item.multiplier > 1) multTag = '<div class="inv-multiplier-tag">✨ ×' + item.multiplier + '</div>';
+    let vipBadge = '';
+    if (item.is_vip) vipBadge = '<div class="inv-vip-badge">👑 VIP</div>';
     card.innerHTML =
-      '<div class="glow"></div><div class="inv-card-check">✓</div>' +
+      '<div class="glow"></div><div class="inv-card-check">✓</div>' + vipBadge +
       '<div class="inv-card-head"><span class="inv-flag">' + item.country_flag + '</span><span class="inv-rarity-badge">' + r.name + '</span></div>' +
       '<div class="inv-number">' + item.number + '</div>' + multTag +
       '<div class="inv-op">' + item.operator_name + '</div>' +
       '<div class="inv-price"><span>' + fmt(item.price) + ' ₽</span><span class="sell-hint">' + (isSel ? '✓ выбран' : 'выбрать') + '</span></div>';
-    card.addEventListener('click', () => toggleSelect(item.id));
+    card.addEventListener('click', () => { playSound('click'); toggleSelect(item.id); });
+    // Долгое нажатие — карточка номера
+    let pressTimer = null;
+    card.addEventListener('pointerdown', () => {
+      pressTimer = setTimeout(() => { pressTimer = null; openPhoneInfo(item); }, 550);
+    });
+    card.addEventListener('pointerup', () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } });
+    card.addEventListener('pointerleave', () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } });
     grid.appendChild(card);
   });
 }
@@ -830,7 +1016,7 @@ function toggleSelect(id) {
   renderInventory();
 }
 
-function clearSelection() { state.selected.clear(); renderInventory(); }
+function clearSelection() { playSound('click'); state.selected.clear(); renderInventory(); }
 
 async function sellSelectedFromInventory() {
   if (state.selected.size === 0) return;
@@ -839,14 +1025,31 @@ async function sellSelectedFromInventory() {
     const res = await api('/api/inventory/sell', { method: 'POST', body: JSON.stringify({ ids }) });
     state.balance = res.balance;
     state.selected.clear();
+    playSound('sell');
     showToast('💵 Продано ' + res.sold + ' за ' + fmt(res.total) + ' ₽', '#34c759');
     checkNewAchievements(res);
     await loadInventory();
     updateUI();
     renderInventory();
-  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
+  } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
 }
 
+// ============ PHONE INFO MODAL ============
+let currentPhoneInfo = null;
+
+function openPhoneInfo(item) {
+  playSound('open');
+  currentPhoneInfo = item;
+  const r = getRarity(item.rarity);
+  const f = $('pimFlag'); if (f) f.textContent = item.country_flag || '📞';
+  const rr = $('pimRarity'); if (rr) { rr.textContent = r.name; rr.style.color = r.color; }
+  const num = $('pimNumber'); if (num) num.textContent = item.number;
+  const op = $('pimOp'); if (op) op.textContent = (item.country_name || '') + ' · ' + (item.operator_name || '');
+  const price = $('pimPrice'); if (price) price.textContent = fmt(item.price) + ' ₽';
+  const m = $('phoneInfoModal'); if (m) m.classList.add('show');
+}
+
+// ============ COUNTRIES ============
 function renderCountries() {
   const list = $('countryList'); if (!list || !state.meta) return;
   list.innerHTML = '';
@@ -872,6 +1075,7 @@ function renderCountries() {
   });
 }
 
+// ============ CRAFT ============
 async function loadCraft() {
   const list = $('craftList'); if (!list) return;
   list.innerHTML = '<div style="padding:30px;text-align:center;color:#6e6e85;">Загрузка...</div>';
@@ -883,7 +1087,7 @@ async function loadCraft() {
       item.className = 'craft-item' + (r.can_craft ? ' can' : '');
       const enough = r.have >= r.need;
       item.innerHTML = '<div class="craft-counts"><span class="craft-badge ' + (enough ? 'ok' : 'no') + '">' + r.have + '/' + r.need + '</span><span class="arrow">→</span><span class="craft-badge ok" style="background:' + r.to_color + '20;color:' + r.to_color + ';">1</span></div><div class="craft-body"><div class="craft-title" style="color:' + r.to_color + '">' + r.to_name + '</div><div class="craft-sub">из ' + r.need + ' × ' + r.from_name + '</div></div><div class="craft-cost">' + fmt(r.cost) + ' ₽</div>';
-      if (r.can_craft) item.addEventListener('click', () => openCraftModal(r));
+      if (r.can_craft) item.addEventListener('click', () => { playSound('click'); openCraftModal(r); });
       list.appendChild(item);
     });
   } catch (e) { list.innerHTML = '<div style="padding:30px;text-align:center;color:#ff375f;">' + e.message + '</div>'; }
@@ -906,15 +1110,276 @@ async function confirmCraft() {
     updateUI();
     const m = $('craftModal'); if (m) m.classList.remove('show');
     craftTarget = null;
+    playSound('buy');
     showToast('⚗️ Скрафчен: ' + res.new_phone.number, res.new_phone.rarity === 'secret' ? '#00e5ff' : '#ffd60a');
     fireworks(getRarity(res.new_phone.rarity).color);
     checkNewAchievements(res);
     await loadInventory();
     loadCraft();
     renderInventory();
-  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
+  } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
 }
 
+// ============ QUESTS ============
+async function loadQuests() {
+  const list = $('questsList'); if (!list) return;
+  list.innerHTML = '<div style="padding:30px;text-align:center;color:#6e6e85;">Загрузка...</div>';
+  try {
+    const data = await api('/api/quests');
+    list.innerHTML = '';
+    let availableCount = 0;
+    data.quests.forEach(q => {
+      if (q.can_claim) availableCount++;
+      const item = document.createElement('div');
+      const isDone = q.progress >= q.target;
+      const cls = 'quest-item' + (isDone && !q.claimed ? ' done' : '') + (q.claimed ? ' claimed' : '');
+      item.className = cls;
+      const pct = Math.min(100, Math.round(q.progress / q.target * 100));
+      item.innerHTML =
+        '<div class="quest-head">' +
+          '<div class="quest-name">' + q.name + '</div>' +
+          '<div class="quest-reward">+' + fmt(q.reward) + ' ₽</div>' +
+        '</div>' +
+        '<div class="quest-progress-bar"><div class="quest-progress-fill" style="width:' + pct + '%"></div></div>' +
+        '<div class="quest-footer">' +
+          '<div class="quest-progress-text">' + q.progress + ' / ' + q.target + '</div>' +
+          (q.claimed
+            ? '<div class="quest-progress-text" style="color:#34c759;">✅ Получено</div>'
+            : (q.can_claim
+              ? '<button class="quest-claim-btn" data-id="' + q.id + '">Забрать</button>'
+              : '<div class="quest-progress-text">Выполняется</div>')) +
+        '</div>';
+      list.appendChild(item);
+    });
+
+    list.querySelectorAll('.quest-claim-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        try {
+          const res = await api('/api/quests/' + btn.dataset.id + '/claim', { method: 'POST' });
+          state.balance = res.balance;
+          updateUI();
+          playSound('sell');
+          showToast('✅ +' + fmt(res.reward) + ' ₽', '#34c759');
+          fireworks('#34c759');
+          loadQuests();
+        } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
+      });
+    });
+
+    const badge = $('smiQuestCount');
+    if (badge) {
+      badge.textContent = availableCount;
+      badge.style.display = availableCount > 0 ? 'inline-block' : 'none';
+    }
+  } catch (e) {
+    list.innerHTML = '<div style="padding:30px;text-align:center;color:#ff375f;">' + e.message + '</div>';
+  }
+}
+
+// ============ MARKET ============
+async function loadMarket() {
+  const wrap = $('marketList'); if (!wrap) return;
+  wrap.innerHTML = '<div style="padding:30px;text-align:center;color:#6e6e85;">Загрузка...</div>';
+  try {
+    const path = state.marketTab === 'my' ? '/api/market/my' : '/api/market';
+    const data = await api(path);
+    const list = data.listings || [];
+    if (!list.length) {
+      wrap.innerHTML = '<div style="padding:30px;text-align:center;color:#6e6e85;">Пусто</div>';
+      return;
+    }
+    wrap.innerHTML = '';
+    list.forEach(l => {
+      const r = getRarity(l.rarity);
+      const el = document.createElement('div');
+      el.className = 'market-item rarity-' + l.rarity;
+      let actionHtml = '';
+      if (state.marketTab === 'all') {
+        actionHtml = '<button class="market-buy-btn" data-id="' + l.id + '">💵 Купить</button>';
+      } else {
+        actionHtml = '<button class="market-buy-btn" style="background:rgba(255,55,95,.2);color:#ff375f;" data-cancel="' + l.id + '">❌ Снять</button>';
+      }
+      el.innerHTML =
+        '<div class="market-body">' +
+          '<div class="market-num">' + (l.country_flag || '') + ' ' + l.number + '</div>' +
+          '<div class="market-meta" style="color:' + r.color + '">' + r.name + ' · ' + (l.operator_name || '') + (l.multiplier > 1 ? ' · ✨×' + l.multiplier : '') + '</div>' +
+          (l.seller_name ? '<div class="market-seller">👤 ' + l.seller_name + (l.seller_username ? ' (@' + l.seller_username + ')' : '') + '</div>' : '') +
+        '</div>' +
+        '<div style="text-align:right;">' +
+          '<div class="market-price">' + fmt(l.price) + ' ₽</div>' +
+          actionHtml +
+        '</div>';
+      wrap.appendChild(el);
+    });
+
+    wrap.querySelectorAll('.market-buy-btn[data-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const price = btn.parentElement.parentElement.querySelector('.market-price').textContent;
+        if (!confirm('Купить за ' + price + '?')) return;
+        try {
+          const res = await api('/api/market/buy/' + btn.dataset.id, { method: 'POST' });
+          state.balance = res.balance;
+          updateUI();
+          playSound('buy');
+          showToast('✅ Куплено!', '#34c759');
+          await loadInventory();
+          loadMarket();
+        } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
+      });
+    });
+
+    wrap.querySelectorAll('.market-buy-btn[data-cancel]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        try {
+          await api('/api/market/cancel/' + btn.dataset.cancel, { method: 'POST' });
+          playSound('click');
+          showToast('↩️ Снято с рынка', '#0a84ff');
+          await loadInventory();
+          loadMarket();
+        } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
+      });
+    });
+  } catch (e) {
+    wrap.innerHTML = '<div style="padding:30px;text-align:center;color:#ff375f;">' + e.message + '</div>';
+  }
+}
+
+async function listPhoneOnMarket(invId, price) {
+  try {
+    await api('/api/market/list', { method: 'POST', body: JSON.stringify({ inv_id: invId, price }) });
+    playSound('sell');
+    showToast('💱 Выставлено на рынок', '#0a84ff');
+    await loadInventory();
+    renderInventory();
+    const m = $('phoneInfoModal'); if (m) m.classList.remove('show');
+    const mlm = $('marketListModal'); if (mlm) mlm.classList.remove('show');
+  } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
+}
+
+// ============ DICE ============
+async function loadDice() {
+  const wrap = $('diceList'); if (!wrap) return;
+  wrap.innerHTML = '<div style="padding:30px;text-align:center;color:#6e6e85;">Загрузка...</div>';
+  try {
+    const data = await api('/api/dice');
+    const games = data.games || [];
+    if (!games.length) {
+      wrap.innerHTML = '<div style="padding:30px;text-align:center;color:#6e6e85;">Нет активных игр.<br>Создай первую!</div>';
+      return;
+    }
+    wrap.innerHTML = '';
+    const myId = state.user ? state.user.telegram_id : null;
+    games.forEach(g => {
+      const el = document.createElement('div');
+      el.className = 'dice-item';
+      const isMine = g.creator_id === myId;
+      el.innerHTML =
+        '<div class="dice-avatar">' + (g.creator_name || '?').charAt(0).toUpperCase() + '</div>' +
+        '<div class="dice-body">' +
+          '<div class="dice-name">' + g.creator_name + (isMine ? ' (ты)' : '') + '</div>' +
+          '<div class="dice-bet">💰 Ставка: ' + fmt(g.bet) + ' ₽</div>' +
+        '</div>' +
+        (isMine
+          ? '<button class="dice-join-btn" style="background:rgba(255,55,95,.2);color:#ff375f;" data-cancel="' + g.id + '">❌ Отмена</button>'
+          : '<button class="dice-join-btn" data-id="' + g.id + '">🎲 Играть</button>');
+      wrap.appendChild(el);
+    });
+
+    wrap.querySelectorAll('.dice-join-btn[data-id]').forEach(btn => {
+      btn.addEventListener('click', () => joinDice(btn.dataset.id));
+    });
+    wrap.querySelectorAll('.dice-join-btn[data-cancel]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        try {
+          const res = await api('/api/dice/cancel/' + btn.dataset.cancel, { method: 'POST' });
+          state.balance = res.balance;
+          updateUI();
+          playSound('click');
+          showToast('↩️ Ставка возвращена', '#0a84ff');
+          loadDice();
+        } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
+      });
+    });
+  } catch (e) {
+    wrap.innerHTML = '<div style="padding:30px;text-align:center;color:#ff375f;">' + e.message + '</div>';
+  }
+}
+
+async function joinDice(gameId) {
+  if (!confirm('Сыграть в кости?')) return;
+  playSound('click');
+  try {
+    const res = await api('/api/dice/join/' + gameId, { method: 'POST' });
+    state.balance = res.balance;
+    updateUI();
+    playSound('spin');
+
+    const c1 = $('diceCube1'); if (c1) c1.textContent = res.dice_creator;
+    const c2 = $('diceCube2'); if (c2) c2.textContent = res.dice_opponent;
+    const icon = $('diceResultIcon');
+    const title = $('diceResultTitle');
+    const text = $('diceResultText');
+
+    if (res.result === 'creator') {
+      if (icon) icon.textContent = '😢';
+      if (title) { title.textContent = 'Ты проиграл'; title.style.color = '#ff375f'; }
+      if (text) text.textContent = 'Проигрыш ' + fmt(res.bet) + ' ₽';
+      playSound('error');
+      vibrate('error');
+    } else if (res.result === 'opponent') {
+      if (icon) icon.textContent = '🎉';
+      if (title) { title.style.color = '#34c759'; title.textContent = 'Ты победил!'; }
+      if (text) text.textContent = 'Выигрыш ' + fmt(res.bet * 2) + ' ₽';
+      playSound('ach');
+      vibrate('success');
+      fireworks('#34c759');
+    } else {
+      if (icon) icon.textContent = '🤝';
+      if (title) { title.style.color = '#ffd60a'; title.textContent = 'Ничья'; }
+      if (text) text.textContent = 'Ставка возвращена';
+      playSound('click');
+    }
+
+    const m = $('diceResultModal'); if (m) m.classList.add('show');
+    loadDice();
+    loadProfile();
+  } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
+}
+
+// ============ REFERRAL ============
+async function loadReferral() {
+  try {
+    const data = await api('/api/referrals');
+    const linkInput = $('refLinkInput');
+    if (linkInput) linkInput.value = data.link || '';
+    const rc = $('refCount'); if (rc) rc.textContent = data.count || 0;
+    const re = $('refEarned'); if (re) re.textContent = fmt(data.total_earned || 0) + ' ₽';
+  } catch (e) {
+    console.error('Referral load error', e);
+  }
+}
+
+// ============ ACHIEVEMENTS ============
+async function loadAchievements() {
+  const list = $('achList'); if (!list) return;
+  list.innerHTML = '<div style="padding:20px;text-align:center;color:#6e6e85;">Загрузка...</div>';
+  try {
+    const data = await api('/api/achievements');
+    const cnt = $('achCount'); if (cnt) cnt.textContent = data.total_unlocked + '/' + data.total;
+    list.innerHTML = '';
+    data.all.forEach(a => {
+      const el = document.createElement('div');
+      el.className = 'ach-item' + (a.unlocked ? ' unlocked' : '');
+      const iconMatch = a.name.match(/^(\S+)/);
+      const icon = iconMatch ? iconMatch[1] : '🏅';
+      const nameOnly = a.name.replace(/^\S+\s*/, '');
+      el.innerHTML = '<div class="ach-icon">' + icon + '</div><div class="ach-body"><div class="ach-name">' + (nameOnly || a.name) + '</div><div class="ach-desc">' + a.desc + '</div></div><div class="ach-reward">+' + fmt(a.reward) + ' ₽</div><div class="ach-check">✓</div>';
+      list.appendChild(el);
+    });
+  } catch (e) { list.innerHTML = '<div style="padding:20px;text-align:center;color:#ff375f;">' + e.message + '</div>'; }
+}
+
+// ============ LEADERBOARD ============
 async function loadLeaderboard() {
   const list = $('lbList'); if (!list) return;
   list.innerHTML = '<div style="padding:30px;text-align:center;color:#6e6e85;">Загрузка...</div>';
@@ -938,6 +1403,7 @@ async function loadLeaderboard() {
   } catch (e) { list.innerHTML = '<div style="padding:30px;text-align:center;color:#ff375f;">' + e.message + '</div>'; }
 }
 
+// ============ BONUS ============
 async function loadBonus() {
   try {
     const data = await api('/api/daily-bonus/status');
@@ -982,35 +1448,45 @@ async function claimBonus() {
     const res = await api('/api/daily-bonus', { method: 'POST' });
     state.balance = res.balance;
     updateUI();
+    playSound('sell');
     showToast('🎁 +' + fmt(res.amount) + ' ₽', '#34c759');
     fireworks('#34c759');
     loadBonus();
-  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); loadBonus(); }
+  } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); loadBonus(); }
 }
 
-async function loadAchievements() {
-  const list = $('achList'); if (!list) return;
-  list.innerHTML = '<div style="padding:20px;text-align:center;color:#6e6e85;">Загрузка...</div>';
+// ============ PROMO ============
+function togglePromoBar() {
+  playSound('click');
+  const bar = $('promoBar'); if (!bar) return;
+  bar.classList.toggle('open');
+  if (bar.classList.contains('open')) setTimeout(() => { const i = $('promoInput'); if (i) i.focus(); }, 100);
+}
+
+async function activatePromo() {
+  const input = $('promoInput'); if (!input) return;
+  const code = input.value.trim().toUpperCase();
+  if (!code) { playSound('error'); showToast('❌ Введите код', '#ff375f'); return; }
+  if (state.usedPromos.has(code)) { playSound('error'); showToast('⚠️ Уже использован', '#ffd60a'); input.value = ''; return; }
   try {
-    const data = await api('/api/achievements');
-    const cnt = $('achCount'); if (cnt) cnt.textContent = data.total_unlocked + '/' + data.total;
-    list.innerHTML = '';
-    data.all.forEach(a => {
-      const el = document.createElement('div');
-      el.className = 'ach-item' + (a.unlocked ? ' unlocked' : '');
-      const iconMatch = a.name.match(/^(\S+)/);
-      const icon = iconMatch ? iconMatch[1] : '🏅';
-      const nameOnly = a.name.replace(/^\S+\s*/, '');
-      el.innerHTML = '<div class="ach-icon">' + icon + '</div><div class="ach-body"><div class="ach-name">' + (nameOnly || a.name) + '</div><div class="ach-desc">' + a.desc + '</div></div><div class="ach-reward">+' + fmt(a.reward) + ' ₽</div><div class="ach-check">✓</div>';
-      list.appendChild(el);
-    });
-  } catch (e) { list.innerHTML = '<div style="padding:20px;text-align:center;color:#ff375f;">' + e.message + '</div>'; }
+    const res = await api('/api/promo/activate', { method: 'POST', body: JSON.stringify({ code }) });
+    state.usedPromos.add(code);
+    state.balance = res.balance;
+    const bal = $('balance'); if (bal) { bal.classList.add('flash'); setTimeout(() => bal.classList.remove('flash'), 700); }
+    playSound('sell');
+    fireworks('#34c759');
+    showToast('🎉 Промокод: +' + fmt(res.amount) + ' ₽', '#34c759');
+    input.value = '';
+    updateUI();
+    setTimeout(() => { const b = $('promoBar'); if (b) b.classList.remove('open'); }, 1000);
+  } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); input.value = ''; }
 }
 
 // ============ MONEY ============
 let moneyState = { target: null };
 
 function openMoneyModal() {
+  playSound('open');
   const m = $('moneyModal'); if (m) m.classList.add('show');
   moneyState.target = null;
   const info = $('moneyFoundInfo'); if (info) { info.classList.remove('show'); info.textContent = ''; }
@@ -1027,7 +1503,7 @@ function closeMoneyModal() { const m = $('moneyModal'); if (m) m.classList.remov
 async function findMoneyUser() {
   const un = $('moneyUsername');
   const username = (un ? un.value : '').trim().replace(/^@/, '');
-  if (!username) { showToast('❌ Введи @username', '#ff375f'); return; }
+  if (!username) { playSound('error'); showToast('❌ Введи @username', '#ff375f'); return; }
   const info = $('moneyFoundInfo');
   try {
     const res = await api('/api/trade/find', { method: 'POST', body: JSON.stringify({ username }) });
@@ -1038,6 +1514,7 @@ async function findMoneyUser() {
     const sb = $('moneySend'); if (sb) sb.style.display = 'flex';
     const mb = $('moneyMyBal'); if (mb) mb.textContent = fmt(state.balance) + ' ₽';
   } catch (e) {
+    playSound('error');
     info.textContent = '❌ ' + e.message;
     info.classList.remove('show');
     const as = $('moneyAmountSection'); if (as) as.style.display = 'none';
@@ -1046,11 +1523,11 @@ async function findMoneyUser() {
 }
 
 function sendMoneyConfirm() {
-  if (!moneyState.target) { showToast('❌ Сначала найди игрока', '#ff375f'); return; }
+  if (!moneyState.target) { playSound('error'); showToast('❌ Сначала найди игрока', '#ff375f'); return; }
   const am = $('moneyAmount');
   const amount = parseInt((am ? am.value : '') || '0', 10) || 0;
-  if (amount <= 0) { showToast('❌ Введи сумму', '#ff375f'); return; }
-  if (amount > state.balance) { showToast('❌ У тебя недостаточно денег', '#ff375f'); return; }
+  if (amount <= 0) { playSound('error'); showToast('❌ Введи сумму', '#ff375f'); return; }
+  if (amount > state.balance) { playSound('error'); showToast('❌ У тебя недостаточно денег', '#ff375f'); return; }
   const mi = $('confirmIcon'); if (mi) mi.textContent = '💸';
   const text = 'Перевести ' + fmt(amount) + ' ₽ игроку @' + moneyState.target.username + '?';
   const ct = $('tradeConfirmText'); if (ct) ct.textContent = text;
@@ -1067,16 +1544,18 @@ async function doSendMoney() {
     await api('/api/trade/create', { method: 'POST', body: JSON.stringify({ to_username: moneyState.target.username, from_items: [], to_items: [], from_money: amount, to_money: 0, message: message }) });
     const cm = $('tradeConfirmModal'); if (cm) cm.classList.remove('show');
     closeMoneyModal();
+    playSound('sell');
     showToast('✅ Отправлено!', '#34c759');
     await loadProfile();
     updateUI();
-  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
+  } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
 }
 
 // ============ TRADES ============
 let tradeState = { targetUser: null, targetItems: [], mySelected: new Set(), hisSelected: new Set(), currentTab: 'incoming' };
 
 function openTradeModal() {
+  playSound('open');
   const m = $('tradeModal'); if (m) m.classList.add('show');
   tradeState.targetUser = null;
   tradeState.targetItems = [];
@@ -1096,7 +1575,7 @@ function closeTradeModal() { const m = $('tradeModal'); if (m) m.classList.remov
 async function findTradeUser() {
   const un = $('tradeUsername');
   const username = (un ? un.value : '').trim().replace(/^@/, '');
-  if (!username) { showToast('❌ Введи @username', '#ff375f'); return; }
+  if (!username) { playSound('error'); showToast('❌ Введи @username', '#ff375f'); return; }
   const info = $('tradeFoundInfo');
   try {
     const res = await api('/api/trade/find', { method: 'POST', body: JSON.stringify({ username }) });
@@ -1111,6 +1590,7 @@ async function findTradeUser() {
     renderTradeMyItems();
     renderTradeHisItems();
   } catch (e) {
+    playSound('error');
     info.textContent = '❌ ' + e.message;
     info.classList.remove('show');
     ['tradeMySection','tradeHisSection','tradeMsgSection'].forEach(id => { const el = $(id); if (el) el.style.display = 'none'; });
@@ -1157,12 +1637,12 @@ function renderTradeHisItems() {
 }
 
 function sendTradeConfirm() {
-  if (!tradeState.targetUser) { showToast('❌ Сначала найди игрока', '#ff375f'); return; }
+  if (!tradeState.targetUser) { playSound('error'); showToast('❌ Сначала найди игрока', '#ff375f'); return; }
   const mm = $('tradeMyMoney'); const myMoney = parseInt((mm ? mm.value : '') || '0', 10) || 0;
   const hm = $('tradeHisMoney'); const hisMoney = parseInt((hm ? hm.value : '') || '0', 10) || 0;
-  if (myMoney < 0 || hisMoney < 0) { showToast('❌ Деньги не могут быть отрицательными', '#ff375f'); return; }
-  if (myMoney > state.balance) { showToast('❌ У тебя недостаточно денег', '#ff375f'); return; }
-  if (tradeState.mySelected.size === 0 && tradeState.hisSelected.size === 0 && myMoney === 0 && hisMoney === 0) { showToast('❌ Добавь номера или деньги', '#ff375f'); return; }
+  if (myMoney < 0 || hisMoney < 0) { playSound('error'); showToast('❌ Деньги не могут быть отрицательными', '#ff375f'); return; }
+  if (myMoney > state.balance) { playSound('error'); showToast('❌ У тебя недостаточно денег', '#ff375f'); return; }
+  if (tradeState.mySelected.size === 0 && tradeState.hisSelected.size === 0 && myMoney === 0 && hisMoney === 0) { playSound('error'); showToast('❌ Добавь номера или деньги', '#ff375f'); return; }
   const mi = $('confirmIcon'); if (mi) mi.textContent = '⚠️';
   const text = 'Обмен игроку @' + tradeState.targetUser.username + ':\n📤 ' + tradeState.mySelected.size + ' номеров' + (myMoney > 0 ? ' + ' + fmt(myMoney) + ' ₽' : '') + '\n📥 ' + tradeState.hisSelected.size + ' номеров' + (hisMoney > 0 ? ' + ' + fmt(hisMoney) + ' ₽' : '');
   const tt = $('tradeConfirmText'); if (tt) tt.textContent = text;
@@ -1178,9 +1658,10 @@ async function doSendTrade() {
     await api('/api/trade/create', { method: 'POST', body: JSON.stringify({ to_username: tradeState.targetUser.username, from_items: Array.from(tradeState.mySelected), to_items: Array.from(tradeState.hisSelected), from_money: myMoney, to_money: hisMoney, message: message }) });
     const cm = $('tradeConfirmModal'); if (cm) cm.classList.remove('show');
     closeTradeModal();
+    playSound('sell');
     showToast('✅ Обмен отправлен!', '#34c759');
     loadTrades();
-  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
+  } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
 }
 
 async function loadTrades() {
@@ -1219,13 +1700,14 @@ async function loadTrades() {
         b.addEventListener('click', async () => {
           try {
             await api('/api/trade/' + b.dataset.id + '/respond', { method: 'POST', body: JSON.stringify({ action: b.dataset.act }) });
+            playSound(b.dataset.act === 'accept' ? 'sell' : 'click');
             showToast(b.dataset.act === 'accept' ? '✅ Принят' : '❌ Отклонён', '#34c759');
             await loadInventory();
             await loadProfile();
             updateUI();
             renderInventory();
             loadTrades();
-          } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
+          } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
         });
       });
     } else {
@@ -1250,47 +1732,20 @@ function setupTradeTabs() {
       loadTrades();
     });
   });
+  document.querySelectorAll('.market-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.marketTab = btn.dataset.market;
+      document.querySelectorAll('.market-tab').forEach(b => b.classList.toggle('active', b === btn));
+      loadMarket();
+    });
+  });
 }
 
-function togglePromoBar() {
-  const bar = $('promoBar'); if (!bar) return;
-  bar.classList.toggle('open');
-  if (bar.classList.contains('open')) setTimeout(() => { const i = $('promoInput'); if (i) i.focus(); }, 100);
-}
-
-async function activatePromo() {
-  const input = $('promoInput'); if (!input) return;
-  const code = input.value.trim().toUpperCase();
-  if (!code) { showToast('❌ Введите код', '#ff375f'); return; }
-  if (state.usedPromos.has(code)) { showToast('⚠️ Уже использован', '#ffd60a'); input.value = ''; return; }
-  try {
-    const res = await api('/api/promo/activate', { method: 'POST', body: JSON.stringify({ code }) });
-    state.usedPromos.add(code);
-    state.balance = res.balance;
-    const bal = $('balance'); if (bal) { bal.classList.add('flash'); setTimeout(() => bal.classList.remove('flash'), 700); }
-    fireworks('#34c759');
-    showToast('🎉 Промокод: +' + fmt(res.amount) + ' ₽', '#34c759');
-    input.value = '';
-    updateUI();
-    setTimeout(() => { const b = $('promoBar'); if (b) b.classList.remove('open'); }, 1000);
-  } catch (e) { showToast('❌ ' + e.message, '#ff375f'); input.value = ''; }
-}
-
+// ============ TABS TOP ============
 function setupTabs() {
-  const tabs = document.querySelectorAll('.tab');
-  tabs.forEach(tab => {
+  document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
-      const target = tab.dataset.page;
-      tabs.forEach(t => t.classList.toggle('active', t === tab));
-      document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + target));
-      const controlsSpin = $('controls');
-      if (target === 'roulette') { if (controlsSpin) controlsSpin.style.display = 'flex'; }
-      else { if (controlsSpin) controlsSpin.style.display = 'none'; }
-      if (target === 'inventory') renderInventory();
-      if (target === 'countries') renderCountries();
-      if (target === 'craft') loadCraft();
-      if (target === 'top') loadLeaderboard();
-      if (target === 'profile') { loadTrades(); loadAchievements(); }
+      switchPage(tab.dataset.page);
     });
   });
   document.querySelectorAll('.lb-tab').forEach(btn => {
@@ -1302,6 +1757,7 @@ function setupTabs() {
   });
 }
 
+// ============ INIT ============
 async function init() {
   try {
     const ok = await loadMeta();
@@ -1309,6 +1765,12 @@ async function init() {
     if (!state.token) await authenticate();
     else { try { await loadProfile(); } catch (e) { await authenticate(); } }
     await loadInventory();
+
+    // Инициализация звука
+    const soundIcon = $('soundIcon');
+    const soundText = $('soundText');
+    if (soundIcon) soundIcon.textContent = state.soundEnabled ? '🔊' : '🔇';
+    if (soundText) soundText.textContent = state.soundEnabled ? 'Звук вкл' : 'Звук выкл';
 
     renderCountrySelector();
     renderOperatorSelector();
@@ -1318,6 +1780,7 @@ async function init() {
     updateUI();
     setupTabs();
     setupTradeTabs();
+    setupSideMenu();
     loadBonus();
 
     const spinBtn = $('spinBtn'); if (spinBtn) spinBtn.addEventListener('click', spinOne);
@@ -1351,7 +1814,7 @@ async function init() {
     const moneyCancel = $('moneyCancel'); if (moneyCancel) moneyCancel.addEventListener('click', closeMoneyModal);
     const moneyFindBtn = $('moneyFindBtn'); if (moneyFindBtn) moneyFindBtn.addEventListener('click', findMoneyUser);
     const moneySend = $('moneySend'); if (moneySend) moneySend.addEventListener('click', sendMoneyConfirm);
-    document.querySelectorAll('.money-quick-btn').forEach(b => {
+    document.querySelectorAll('.money-quick-btn[data-amt]').forEach(b => {
       b.addEventListener('click', () => { const am = $('moneyAmount'); if (am) am.value = b.dataset.amt; });
     });
 
@@ -1370,18 +1833,103 @@ async function init() {
       }
     });
 
-    const mo = $('multiOverlay');
-    if (mo) mo.addEventListener('click', e => {
-      if (e.target === mo) closeMultiOverlay();
+    // Модалка: карточка номера
+    const pimCancel = $('pimCancel'); if (pimCancel) pimCancel.addEventListener('click', () => { const m = $('phoneInfoModal'); if (m) m.classList.remove('show'); });
+    const pimSell = $('pimSell'); if (pimSell) pimSell.addEventListener('click', async () => {
+      if (!currentPhoneInfo) return;
+      try {
+        const res = await api('/api/inventory/sell', { method: 'POST', body: JSON.stringify({ ids: [currentPhoneInfo.id] }) });
+        state.balance = res.balance;
+        updateUI();
+        playSound('sell');
+        showToast('💵 +' + fmt(res.total) + ' ₽', '#34c759');
+        await loadInventory();
+        renderInventory();
+        const m = $('phoneInfoModal'); if (m) m.classList.remove('show');
+        currentPhoneInfo = null;
+      } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
+    });
+    const pimListMarket = $('pimListMarket'); if (pimListMarket) pimListMarket.addEventListener('click', () => {
+      if (!currentPhoneInfo) return;
+      const mn = $('marketListNumber'); if (mn) mn.textContent = currentPhoneInfo.number;
+      const mp = $('marketPriceInput'); if (mp) mp.value = currentPhoneInfo.price;
+      const m = $('phoneInfoModal'); if (m) m.classList.remove('show');
+      const mm = $('marketListModal'); if (mm) mm.classList.add('show');
     });
 
-    const ro = $('resultOverlay');
-    if (ro) ro.addEventListener('click', e => {
-      if (e.target === ro) closeResult();
+    // Модалка: рынок
+    document.querySelectorAll('.money-quick-btn[data-mprice]').forEach(b => {
+      b.addEventListener('click', () => { const mp = $('marketPriceInput'); if (mp) mp.value = b.dataset.mprice; });
     });
+    const marketListCancel = $('marketListCancel'); if (marketListCancel) marketListCancel.addEventListener('click', () => { const m = $('marketListModal'); if (m) m.classList.remove('show'); });
+    const marketListConfirm = $('marketListConfirm'); if (marketListConfirm) marketListConfirm.addEventListener('click', () => {
+      if (!currentPhoneInfo) return;
+      const mp = $('marketPriceInput');
+      const price = parseInt((mp ? mp.value : '') || '0', 10) || 0;
+      if (price < 10) { playSound('error'); showToast('❌ Минимум 10 ₽', '#ff375f'); return; }
+      listPhoneOnMarket(currentPhoneInfo.id, price);
+    });
+
+    // Модалка: кости
+    const diceCreateBtn = $('diceCreateBtn'); if (diceCreateBtn) diceCreateBtn.addEventListener('click', () => {
+      playSound('open');
+      const mp = $('diceBetInput'); if (mp) mp.value = '';
+      const m = $('diceCreateModal'); if (m) m.classList.add('show');
+    });
+    document.querySelectorAll('.money-quick-btn[data-dbet]').forEach(b => {
+      b.addEventListener('click', () => { const db = $('diceBetInput'); if (db) db.value = b.dataset.dbet; });
+    });
+    const diceCreateCancel = $('diceCreateCancel'); if (diceCreateCancel) diceCreateCancel.addEventListener('click', () => { const m = $('diceCreateModal'); if (m) m.classList.remove('show'); });
+    const diceCreateConfirm = $('diceCreateConfirm'); if (diceCreateConfirm) diceCreateConfirm.addEventListener('click', async () => {
+      const db = $('diceBetInput');
+      const bet = parseInt((db ? db.value : '') || '0', 10) || 0;
+      if (bet < 100) { playSound('error'); showToast('❌ Минимум 100 ₽', '#ff375f'); return; }
+      if (bet > state.balance) { playSound('error'); showToast('❌ Недостаточно средств', '#ff375f'); return; }
+      try {
+        const res = await api('/api/dice/create', { method: 'POST', body: JSON.stringify({ bet }) });
+        state.balance = res.balance;
+        updateUI();
+        playSound('buy');
+        showToast('🎲 Игра создана!', '#34c759');
+        const m = $('diceCreateModal'); if (m) m.classList.remove('show');
+        loadDice();
+      } catch (e) { playSound('error'); showToast('❌ ' + e.message, '#ff375f'); }
+    });
+    const diceResultOk = $('diceResultOk'); if (diceResultOk) diceResultOk.addEventListener('click', () => { const m = $('diceResultModal'); if (m) m.classList.remove('show'); });
+
+    // Реферальная ссылка — копирование
+    const refCopyBtn = $('refCopyBtn');
+    if (refCopyBtn) {
+      refCopyBtn.addEventListener('click', async () => {
+        const inp = $('refLinkInput'); if (!inp) return;
+        inp.select();
+        try {
+          await navigator.clipboard.writeText(inp.value);
+          playSound('sell');
+          showToast('📋 Ссылка скопирована!', '#34c759');
+        } catch (e) {
+          document.execCommand('copy');
+          showToast('📋 Ссылка скопирована!', '#34c759');
+        }
+      });
+    }
+
+    // Клик по фону overlay закрывает
+    const mo = $('multiOverlay');
+    if (mo) mo.addEventListener('click', e => { if (e.target === mo) closeMultiOverlay(); });
+    const ro = $('resultOverlay');
+    if (ro) ro.addEventListener('click', e => { if (e.target === ro) closeResult(); });
+    const pim = $('phoneInfoModal');
+    if (pim) pim.addEventListener('click', e => { if (e.target === pim) { pim.classList.remove('show'); currentPhoneInfo = null; } });
+    const mlm = $('marketListModal');
+    if (mlm) mlm.addEventListener('click', e => { if (e.target === mlm) mlm.classList.remove('show'); });
+    const dcm = $('diceCreateModal');
+    if (dcm) dcm.addEventListener('click', e => { if (e.target === dcm) dcm.classList.remove('show'); });
+    const drm = $('diceResultModal');
+    if (drm) drm.addEventListener('click', e => { if (e.target === drm) drm.classList.remove('show'); });
 
     setInterval(refreshStatus, 60000);
-    console.log('✅ App initialized');
+    console.log('✅ App initialized (полная версия)');
   } catch (e) {
     console.error('❌ Init error:', e);
     if (typeof showToast === 'function') showToast('Ошибка: ' + e.message, '#ff375f');
@@ -1389,6 +1937,17 @@ async function init() {
 }
 
 async function boot() {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) {
+    try {
+      tg.ready();
+      tg.expand();
+      if (typeof tg.requestFullscreen === 'function') tg.requestFullscreen();
+      tg.setHeaderColor('#0b0b12');
+      tg.setBackgroundColor('#0b0b12');
+    } catch (e) {}
+  }
+
   try {
     const res = await fetch(API_BASE + '/api/status', { cache: 'no-store' });
     if (res.ok) {
