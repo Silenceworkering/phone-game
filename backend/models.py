@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, BigInteger, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, BigInteger, Boolean, DateTime, Text, ForeignKey, Float
 from sqlalchemy.orm import declarative_base
 from datetime import datetime
 
@@ -72,6 +72,8 @@ class SpinLog(Base):
     cost = Column(Integer, default=0)
     country_code = Column(String(8))
     operator_code = Column(String(16))
+    multiplier = Column(Float, default=1.0)
+    beauty_json = Column(Text, default="")
     is_multi = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -83,11 +85,14 @@ class Inventory(Base):
     number = Column(String(64), nullable=False)
     rarity = Column(String(32), nullable=False, index=True)
     price = Column(Integer, default=0)
+    multiplier = Column(Float, default=1.0)
+    beauty_json = Column(Text, default="")
     country_code = Column(String(8))
     country_flag = Column(String(16))
     country_name = Column(String(64))
     operator_code = Column(String(16))
     operator_name = Column(String(64))
+    is_gifted = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
