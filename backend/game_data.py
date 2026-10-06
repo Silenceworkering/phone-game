@@ -1,6 +1,6 @@
 """
 Игровые данные: редкости, страны, операторы, красота номеров.
-СБАЛАНСИРОВАННАЯ ЭКОНОМИКА.
+СБАЛАНСИРОВАННАЯ ЭКОНОМИКА + штрафы на топовые редкости.
 """
 import random
 from typing import Optional, Dict, Any, List, Tuple
@@ -251,24 +251,48 @@ def get_country(code: str) -> Optional[dict]:
     return COUNTRIES[0] if COUNTRIES else None
 
 
+# ============ РЕДКОСТЬ ============
 def pick_rarity(min_rarity: str = "common", luck_mult: float = 1.0) -> str:
-    if min_rarity not in RARITY_ORDER: min_rarity = "common"
+    """
+    Выбирает редкость с учётом:
+    - min_rarity: минимальная редкость (common/rare/epic/mythic)
+    - luck_mult: множитель удачи (×5 / ×25)
+    - ШТРАФЫ на legendary/secret — при высоких мин. редкостях они выпадают реже
+    """
+    if min_rarity not in RARITY_ORDER:
+        min_rarity = "common"
     min_idx = RARITY_ORDER.index(min_rarity)
     pool = RARITY_ORDER[min_idx:]
+
+    # Штрафы: при mythic → legendary/secret почти не выпадают
+    penalties = {
+        "common":    {"legendary": 1.0,  "secret": 1.0},
+        "rare":      {"legendary": 1.0,  "secret": 1.0},
+        "epic":      {"legendary": 0.7,  "secret": 0.5},
+        "mythic":    {"legendary": 0.15, "secret": 0.08},
+    }
+    penalty = penalties.get(min_rarity, {"legendary": 1.0, "secret": 1.0})
+
     weights = []
     for k in pool:
         w = RARITIES[k]["weight"]
-        if luck_mult > 1.0 and k != "common": w *= luck_mult
+        if luck_mult > 1.0 and k != "common":
+            w *= luck_mult
+        if k in penalty:
+            w *= penalty[k]
         weights.append(w)
+
     total = sum(weights)
     roll = random.uniform(0, total)
     for k, w in zip(pool, weights):
         roll -= w
-        if roll <= 0: return k
+        if roll <= 0:
+            return k
     return pool[0]
 
 
-def pick_rarity_any() -> str: return pick_rarity("common")
+def pick_rarity_any() -> str:
+    return pick_rarity("common")
 
 
 def generate_phone(rarity: str, country_code: str, operator_code: Optional[str] = None) -> Dict[str, Any]:
