@@ -54,7 +54,7 @@ def get_luck_info(spins_total: int) -> dict:
 @router.post("/auth")
 def auth_telegram(payload: dict, db: Session = Depends(get_db)):
     init_data = payload.get("init_data", "")
-    ref_code = payload.get("ref_code")  # строка вида "ref_123456789"
+    ref_code = payload.get("ref_code")
 
     if not init_data:
         raise HTTPException(status_code=400, detail="init_data required")
@@ -66,7 +66,6 @@ def auth_telegram(payload: dict, db: Session = Depends(get_db)):
         if not tg_data:
             raise HTTPException(status_code=401, detail="Invalid init_data")
 
-    # Проверяем, новый ли это игрок
     existing = db.query(User).filter(User.telegram_id == tg_data["id"]).first()
     is_new = existing is None
 
@@ -74,14 +73,12 @@ def auth_telegram(payload: dict, db: Session = Depends(get_db)):
     if user.is_banned:
         raise HTTPException(status_code=403, detail="Аккаунт заблокирован")
 
-    # Реферальная система — только для новых
     if is_new and ref_code and ref_code.startswith("ref_"):
         try:
             referrer_tg = int(ref_code.replace("ref_", ""))
             if referrer_tg != user.telegram_id:
                 referrer = db.query(User).filter(User.telegram_id == referrer_tg).first()
                 if referrer and not referrer.is_banned:
-                    # Начисляем
                     REWARD_REFERRER = 50000
                     REWARD_REFERRED = 30000
                     referrer.balance += REWARD_REFERRER
@@ -117,7 +114,6 @@ def auth_telegram(payload: dict, db: Session = Depends(get_db)):
 def me(user: Optional[User] = Depends(get_current_user_optional), db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="Not authorized")
-    # Считаем рефералов
     refs_count = db.query(func.count(ReferralReward.id)).filter(
         ReferralReward.referrer_id == user.telegram_id
     ).scalar() or 0
@@ -296,7 +292,6 @@ def _check_achievements(db, user):
 
 
 def _is_vip_number(number: str, multiplier: float) -> bool:
-    """VIP-номер: множитель ≥ 50 или содержит '777'/'999' """
     if multiplier >= 50: return True
     digits = "".join(c for c in number if c.isdigit())
     if "777" in digits or "999" in digits or "888" in digits: return True
@@ -304,17 +299,13 @@ def _is_vip_number(number: str, multiplier: float) -> bool:
 
 
 def _update_quests(db, user, action_type: str, amount: int = 1):
-    """Обновляет прогресс ежедневных квестов."""
     today = date.today().isoformat()
     quests = db.query(Quest).filter(
         Quest.telegram_id == user.telegram_id,
         Quest.date == today,
     ).all()
-
-    # Автосоздание квестов на сегодня при первой активности
     if not quests:
         quests = _create_daily_quests(db, user, today)
-
     for q in quests:
         if q.quest_type == action_type and not q.claimed:
             q.progress = min(q.progress + amount, q.target)
@@ -322,7 +313,6 @@ def _update_quests(db, user, action_type: str, amount: int = 1):
 
 
 def _create_daily_quests(db, user, today: str):
-    """Создаёт 3 квеста на сегодня."""
     templates = [
         {"type": "spins_5", "target": 5, "reward": 1000},
         {"type": "sells_3", "target": 3, "reward": 500},
@@ -716,7 +706,6 @@ def list_on_market(payload: dict, user: Optional[User] = Depends(get_current_use
     item = db.query(Inventory).filter(Inventory.id == inv_id, Inventory.telegram_id == user.telegram_id).first()
     if not item: raise HTTPException(status_code=404, detail="Номер не найден")
 
-    # Уже выставлен?
     existing = db.query(MarketListing).filter(
         MarketListing.inv_id == inv_id,
         MarketListing.status == "active",
@@ -730,7 +719,6 @@ def list_on_market(payload: dict, user: Optional[User] = Depends(get_current_use
         operator_name=item.operator_name, price=price,
     )
     db.add(listing)
-    # Удаляем из инвентаря
     db.delete(item)
     db.commit()
     return {"success": True, "listing_id": listing.id}
@@ -747,14 +735,12 @@ def buy_from_market(listing_id: int, user: Optional[User] = Depends(get_current_
     seller = db.query(User).filter(User.telegram_id == l.seller_id).first()
     if not seller: raise HTTPException(status_code=400, detail="Продавец не найден")
 
-    # Комиссия 5%
     commission = int(l.price * 0.05)
     seller_gets = l.price - commission
 
     user.balance -= l.price
     seller.balance += seller_gets
 
-    # Передаём номер покупателю
     db.add(Inventory(
         telegram_id=user.telegram_id, number=l.number, rarity=l.rarity,
         price=l.price, multiplier=l.multiplier or 1.0,
@@ -776,7 +762,6 @@ def cancel_listing(listing_id: int, user: Optional[User] = Depends(get_current_u
     l = db.query(MarketListing).filter(MarketListing.id == listing_id, MarketListing.seller_id == user.telegram_id, MarketListing.status == "active").first()
     if not l: raise HTTPException(status_code=404, detail="Не найдено")
 
-    # Возвращаем в инвентарь
     db.add(Inventory(
         telegram_id=user.telegram_id, number=l.number, rarity=l.rarity,
         price=l.price, multiplier=l.multiplier or 1.0,
@@ -854,17 +839,14 @@ def join_dice(game_id: int, user: Optional[User] = Depends(get_current_user_opti
     creator = db.query(User).filter(User.telegram_id == g.creator_id).first()
 
     if d1 > d2:
-        # Победил создатель
         creator.balance += g.bet * 2
         g.winner_id = creator.telegram_id
         result = "creator"
     elif d2 > d1:
-        # Победил присоединившийся
         user.balance += g.bet * 2
         g.winner_id = user.telegram_id
         result = "opponent"
     else:
-        # Ничья — возврат
         creator.balance += g.bet
         user.balance += g.bet
         g.winner_id = None
@@ -979,7 +961,6 @@ def trade_create(payload: dict, user: Optional[User] = Depends(get_current_user_
     db.add(trade)
     db.commit()
 
-    # Уведомление получателю
     try:
         from .bot import bot
         import asyncio
