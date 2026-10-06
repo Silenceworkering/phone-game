@@ -35,7 +35,6 @@ body::before{
 @keyframes flash{ 0%,100%{color:#fff} 40%{color:#ffd60a; transform:scale(1.12)} }
 .stat-stack{ display:flex; flex-direction:column; }
 
-/* LUCK PILL */
 .luck-pill{
   display:flex; align-items:center; gap:4px;
   padding:8px 10px; border-radius:12px;
@@ -128,7 +127,6 @@ body::before{
 .op-chip-mini .cf{ font-size:13px; }
 .op-chip-mini .cn{ font-size:11px; }
 
-/* ROULETTE WINDOW */
 .roulette-window{
   width:100%; position:relative; border-radius:18px; overflow:hidden;
   background:linear-gradient(160deg,#14141f 0%,#1c1c2b 100%);
@@ -171,7 +169,7 @@ body::before{
   background:linear-gradient(90deg,transparent,rgba(255,255,255,.04),transparent);
 }
 
-/* ============ RESULT OVERLAY (одиночный спин) ============ */
+/* RESULT OVERLAY */
 .result-overlay{
   position:fixed; inset:0; z-index:50;
   background:rgba(11,11,18,.97); backdrop-filter:blur(24px);
@@ -189,7 +187,6 @@ body::before{
   background:rgba(255,255,255,.06);
 }
 
-/* ПЛАШКА НОМЕРА */
 .phone-plate{
   width:100%; max-width:340px;
   border-radius:14px; padding:3px;
@@ -212,12 +209,8 @@ body::before{
   transition:color .1s;
 }
 
-.result-operator{
-  font-size:12px; color:var(--muted); font-weight:700;
-  margin-bottom:4px;
-}
+.result-operator{ font-size:12px; color:var(--muted); font-weight:700; margin-bottom:4px; }
 
-/* РАЗБИВКА МНОЖИТЕЛЕЙ */
 .beauty-list{
   width:100%; max-width:340px;
   display:flex; flex-direction:column; gap:5px;
@@ -269,7 +262,7 @@ body::before{
 .result-btn.keep{ background:linear-gradient(135deg,#0a84ff,#5e5ce6); color:#fff; box-shadow:0 8px 22px rgba(10,132,255,.35); }
 .result-btn.sell{ background:linear-gradient(135deg,#34c759,#30d158); color:#fff; box-shadow:0 8px 22px rgba(52,199,89,.35); }
 
-/* ============ MULTI OVERLAY (×5) ============ */
+/* MULTI OVERLAY (×5) */
 .multi-overlay{
   position:fixed; inset:0; z-index:50;
   background:rgba(11,11,18,.97); backdrop-filter:blur(24px);
@@ -301,7 +294,6 @@ body::before{
 .multi-list::-webkit-scrollbar{ width:4px; }
 .multi-list::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
 
-/* КАРТОЧКА НОМЕРА В ×5 */
 .multi-card{
   display:flex; align-items:center; gap:10px;
   padding:10px;
@@ -379,19 +371,28 @@ body::before{
 /* OPTIONS */
 .roulette-options{ margin-top:6px; margin-bottom:6px; flex-shrink:0; }
 .options-label{ font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:1.2px; font-weight:800; margin-bottom:5px; text-align:center; }
-.rarity-options{ display:grid; grid-template-columns:repeat(5, 1fr); gap:4px; }
+.rarity-options{ display:grid; grid-template-columns:repeat(4, 1fr); gap:5px; }
 .rarity-opt{
-  padding:7px 2px; background:var(--card); border:1.5px solid var(--border);
-  border-radius:9px; cursor:pointer; transition:all .2s;
-  display:flex; flex-direction:column; align-items:center; gap:2px; text-align:center;
+  padding:8px 3px; background:var(--card); border:1.5px solid var(--border);
+  border-radius:10px; cursor:pointer; transition:all .2s;
+  display:flex; flex-direction:column; align-items:center; gap:3px; text-align:center;
 }
 .rarity-opt.active{ border-color:currentColor; background:rgba(255,255,255,.06); transform:translateY(-1px); }
-.rarity-opt .dot{ width:7px; height:7px; border-radius:50%; background:currentColor; box-shadow:0 0 7px currentColor; }
-.rarity-opt .name{ font-size:7px; font-weight:900; text-transform:uppercase; letter-spacing:.2px; color:#fff; line-height:1.1; }
-.rarity-opt .price{ font-size:7px; color:var(--muted); font-weight:800; }
+.rarity-opt .dot{ width:8px; height:8px; border-radius:50%; background:currentColor; box-shadow:0 0 8px currentColor; }
+.rarity-opt .name{ font-size:8px; font-weight:900; text-transform:uppercase; letter-spacing:.2px; color:#fff; line-height:1.1; }
+.rarity-opt .price{ font-size:8px; color:var(--muted); font-weight:800; }
 
-/* CONTROLS */
-.controls{ flex-shrink:0; padding:8px 14px calc(10px + env(safe-area-inset-bottom)); display:flex; gap:8px; position:relative; z-index:5; }
+/* ============================================================ */
+/* CONTROLS — БЕЗ !important чтобы JS мог скрывать */
+/* ============================================================ */
+.controls{
+  flex-shrink: 0;
+  padding: 8px 14px calc(10px + env(safe-area-inset-bottom));
+  display: flex;
+  gap: 8px;
+  position: relative;
+  z-index: 5;
+}
 .spin-btn{
   flex:1; padding:12px 10px; border:none; border-radius:14px;
   font-size:13px; font-weight:900; letter-spacing:.5px; text-transform:uppercase; color:#fff;
