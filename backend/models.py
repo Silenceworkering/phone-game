@@ -19,6 +19,8 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     is_owner = Column(Boolean, default=False)
     last_bonus_at = Column(DateTime, nullable=True)
+    referrer_id = Column(BigInteger, nullable=True, index=True)
+    ref_bonus_claimed = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_seen = Column(DateTime, default=datetime.utcnow)
 
@@ -93,6 +95,7 @@ class Inventory(Base):
     operator_code = Column(String(16))
     operator_name = Column(String(64))
     is_gifted = Column(Boolean, default=False)
+    is_vip = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -117,3 +120,64 @@ class Trade(Base):
     status = Column(String(16), default="pending")
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime, nullable=True)
+
+
+class Quest(Base):
+    """Ежедневные квесты игрока."""
+    __tablename__ = "quests"
+    id = Column(Integer, primary_key=True)
+    telegram_id = Column(BigInteger, nullable=False, index=True)
+    date = Column(String(16), index=True)  # YYYY-MM-DD
+    quest_type = Column(String(32))        # spins_5 / sells_3 / crafts_1
+    progress = Column(Integer, default=0)
+    target = Column(Integer, default=1)
+    reward = Column(Integer, default=0)
+    claimed = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class MarketListing(Base):
+    """Номер, выставленный на рынок."""
+    __tablename__ = "market_listings"
+    id = Column(Integer, primary_key=True)
+    seller_id = Column(BigInteger, nullable=False, index=True)
+    inv_id = Column(Integer, nullable=False)
+    number = Column(String(64))
+    rarity = Column(String(32))
+    multiplier = Column(Float, default=1.0)
+    country_flag = Column(String(16))
+    country_name = Column(String(64))
+    operator_name = Column(String(64))
+    price = Column(Integer, default=0)
+    status = Column(String(16), default="active")  # active/sold/cancelled
+    buyer_id = Column(BigInteger, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    sold_at = Column(DateTime, nullable=True)
+
+
+class DiceGame(Base):
+    """Игра в кости с мультиплеером."""
+    __tablename__ = "dice_games"
+    id = Column(Integer, primary_key=True)
+    creator_id = Column(BigInteger, nullable=False, index=True)
+    creator_name = Column(String(128), default="")
+    opponent_id = Column(BigInteger, nullable=True)
+    opponent_name = Column(String(128), default="")
+    bet = Column(Integer, default=0)
+    dice1 = Column(Integer, default=0)
+    dice2 = Column(Integer, default=0)
+    status = Column(String(16), default="open")  # open/finished/cancelled
+    winner_id = Column(BigInteger, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    finished_at = Column(DateTime, nullable=True)
+
+
+class ReferralReward(Base):
+    """Логи начисления реферальных бонусов."""
+    __tablename__ = "referral_rewards"
+    id = Column(Integer, primary_key=True)
+    referrer_id = Column(BigInteger, nullable=False, index=True)
+    referred_id = Column(BigInteger, nullable=False, unique=True)
+    reward_referrer = Column(Integer, default=0)
+    reward_referred = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
