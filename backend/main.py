@@ -15,6 +15,7 @@ from .game_routes import router as game_router
 from .admin_routes import router as admin_router
 
 
+# ============ LIFESPAN ============
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -66,16 +67,21 @@ app.include_router(game_router)
 app.include_router(admin_router)
 
 
+# ============ ROOT (GET + HEAD для UptimeRobot) ============
 @app.get("/")
+@app.head("/")
 def root():
     return {"status": "ok", "service": "Phone Numbers API"}
 
 
+# ============ HEALTH (GET + HEAD) ============
 @app.get("/health")
+@app.head("/health")
 def health():
     return {"ok": True}
 
 
+# ============ ADMIN UI ============
 ADMIN_DIR = Path(__file__).resolve().parent.parent / "admin"
 
 @app.get("/admin", response_class=HTMLResponse)
