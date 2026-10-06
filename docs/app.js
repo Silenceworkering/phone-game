@@ -1,5 +1,5 @@
 // ============================================================
-// Phone Numbers — Финальная версия (автосохранение + новая экономика)
+// Phone Numbers — Финальная версия (автосохранение + кнопки в overlay)
 // ============================================================
 
 const API_BASE = 'https://phone-game.onrender.com';
@@ -425,6 +425,16 @@ function scrambleNumber(container, finalNumber, duration = 1500) {
   });
 }
 
+function hideSpinControls() {
+  const controls = $('controls'); if (controls) controls.style.display = 'none';
+}
+
+function showSpinControls() {
+  const controls = $('controls'); if (controls) controls.style.display = 'flex';
+  const _sb = $('spinBtn'); if (_sb) _sb.disabled = false;
+  const _sb5 = $('spinBtn5'); if (_sb5) _sb5.disabled = false;
+}
+
 // ============ СПИН 1 ============
 async function spinOne() {
   if (state.spinning) return;
@@ -433,7 +443,7 @@ async function spinOne() {
   if (state.meta.boost_golden && state.meta.boost_golden.active) cost = Math.floor(cost * 0.5);
   if (state.balance < cost) { showToast('❌ Недостаточно средств', '#ff375f'); return; }
 
-  // Автосохранение предыдущего результата если игрок не выбрал
+  // Автосохранение предыдущего одиночного результата
   if (state.pending && state.pending.phones && state.pending.phones.length) {
     try {
       await api('/api/inventory/keep', { method: 'POST', body: JSON.stringify({ phones: state.pending.phones }) });
@@ -441,6 +451,10 @@ async function spinOne() {
       updateUI();
     } catch (e) {}
     state.pending = null;
+  }
+  // Автосохранение прошлого ×5
+  if (state.multiPhones.length && !state.multiAutoSaveDone) {
+    await autoSaveMulti();
   }
 
   state.spinning = true;
@@ -471,8 +485,7 @@ async function spinOne() {
     updateUI();
     showToast('❌ ' + e.message, '#ff375f');
     state.spinning = false;
-    const _sb = $('spinBtn'); if (_sb) _sb.disabled = false;
-    const _sb5 = $('spinBtn5'); if (_sb5) _sb5.disabled = false;
+    showSpinControls();
     renderStaticReels();
   }
 }
@@ -480,6 +493,9 @@ async function spinOne() {
 async function finishSpinSingle(phone) {
   const r = getRarity(phone.rarity);
   const ro = $('resultOverlay'); if (ro) ro.classList.add('show');
+
+  // Прячем кнопки круток
+  hideSpinControls();
 
   const rr = $('resultRarity');
   if (rr) { rr.textContent = r.name; rr.style.color = r.color; rr.style.textShadow = '0 0 16px ' + r.color; }
@@ -516,8 +532,6 @@ async function finishSpinSingle(phone) {
 
   state.pending = { phones: [phone], multi: false };
   state.spinning = false;
-  const _sb = $('spinBtn'); if (_sb) _sb.disabled = false;
-  const _sb5 = $('spinBtn5'); if (_sb5) _sb5.disabled = false;
 
   if (phone.rarity === 'legendary' || phone.rarity === 'secret' || phone.rarity === 'mythic') fireworks(r.color);
 }
@@ -531,7 +545,7 @@ async function spinFive() {
   cost = cost * 5;
   if (state.balance < cost) { showToast('❌ Недостаточно средств', '#ff375f'); return; }
 
-  // Автосохранение одиночного результата
+  // Автосохранение одиночного
   if (state.pending && state.pending.phones && state.pending.phones.length) {
     try {
       await api('/api/inventory/keep', { method: 'POST', body: JSON.stringify({ phones: state.pending.phones }) });
@@ -540,7 +554,6 @@ async function spinFive() {
     } catch (e) {}
     state.pending = null;
   }
-
   // Автосохранение прошлого ×5
   if (state.multiPhones.length && !state.multiAutoSaveDone) {
     await autoSaveMulti();
@@ -575,8 +588,7 @@ async function spinFive() {
     updateUI();
     showToast('❌ ' + e.message, '#ff375f');
     state.spinning = false;
-    const _sb = $('spinBtn'); if (_sb) _sb.disabled = false;
-    const _sb5 = $('spinBtn5'); if (_sb5) _sb5.disabled = false;
+    showSpinControls();
     renderStaticReels();
   }
 }
@@ -589,12 +601,13 @@ function finishSpinFive(phones) {
   renderMultiList(phones);
   const mo = $('multiOverlay'); if (mo) mo.classList.add('show');
 
+  // Прячем кнопки круток
+  hideSpinControls();
+
   const total = phones.reduce((s, p) => s + p.price, 0);
   const msub = $('multiSubtitle'); if (msub) msub.textContent = 'Всего: ' + fmt(total) + ' ₽';
 
   state.spinning = false;
-  const _sb = $('spinBtn'); if (_sb) _sb.disabled = false;
-  const _sb5 = $('spinBtn5'); if (_sb5) _sb5.disabled = false;
 
   const order = {};
   state.meta.rarity_order.forEach((k, i) => { order[k] = i; });
@@ -686,6 +699,8 @@ async function closeMultiOverlay() {
   state.multiPhones = [];
   state.multiSelected.clear();
   state.multiAutoSaveDone = false;
+  // Возвращаем кнопки круток
+  showSpinControls();
   renderStaticReels();
 }
 
@@ -700,7 +715,10 @@ async function handleKeepAll() {
     state.pending = null;
     await loadInventory();
     updateUI();
-    closeResult();
+    // Скрываем overlay + возвращаем кнопки
+    const ro = $('resultOverlay'); if (ro) ro.classList.remove('show');
+    showSpinControls();
+    renderStaticReels();
   } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
 }
 
@@ -714,7 +732,9 @@ async function handleSellAll() {
     showToast('💵 +' + fmt(res.total) + ' ₽', '#34c759');
     checkNewAchievements(res);
     state.pending = null;
-    closeResult();
+    const ro = $('resultOverlay'); if (ro) ro.classList.remove('show');
+    showSpinControls();
+    renderStaticReels();
   } catch (e) { showToast('❌ ' + e.message, '#ff375f'); }
 }
 
@@ -735,6 +755,7 @@ async function closeResult() {
   }
   state.pending = null;
   const ro = $('resultOverlay'); if (ro) ro.classList.remove('show');
+  showSpinControls();
   renderStaticReels();
 }
 
