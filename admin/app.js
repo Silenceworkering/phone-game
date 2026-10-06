@@ -3,6 +3,7 @@ const TOKEN_KEY = 'pn_admin_token';
 
 let token = localStorage.getItem(TOKEN_KEY) || '';
 let currentAdmin = null;
+let boostTimers = {};
 
 const RARITY_COLORS = {
   common: '#8e8e93', rare: '#34c759', epic: '#bf5af2',
@@ -16,7 +17,6 @@ const RARITY_NAMES = {
 async function api(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (token) headers['Authorization'] = 'Bearer ' + token;
-
   const res = await fetch(API_BASE + path, { ...options, headers });
   if (!res.ok) {
     const text = await res.text();
@@ -40,13 +40,13 @@ function toast(text, type = '') {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
 }
 
+// ============ AUTH ============
 async function login() {
   const loginVal = document.getElementById('login-input').value.trim();
   const passVal = document.getElementById('password-input').value;
   const errEl = document.getElementById('login-error');
   errEl.textContent = '';
   if (!loginVal || !passVal) { errEl.textContent = 'Заполните оба поля'; return; }
-
   try {
     const res = await fetch(API_BASE + '/admin/api/login', {
       method: 'POST',
@@ -88,6 +88,7 @@ function showPanel() {
   loadDashboard();
 }
 
+// ============ TABS ============
 function setupTabs() {
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -95,13 +96,13 @@ function setupTabs() {
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b === btn));
       document.querySelectorAll('.tab').forEach(t => t.classList.toggle('hidden', t.id !== 'tab-' + tab));
       if (tab === 'dashboard') loadDashboard();
+      if (tab === 'commands') loadCommands();
       if (tab === 'users') loadUsers();
       if (tab === 'spins') loadSpins();
       if (tab === 'broadcast') loadBroadcast();
       if (tab === 'promos') loadPromos();
       if (tab === 'admins') loadAdmins();
       if (tab === 'settings') loadSettings();
-      if (tab === 'maintenance') loadMaintenance();
     });
   });
 }
@@ -112,9 +113,134 @@ async function loadDashboard() {
     const s = await api('/admin/api/stats');
     document.getElementById('stat-users').textContent = s.users_count;
     document.getElementById('stat-spins').textContent = s.spins_count;
+    document.getElementById('stat-inv').textContent = s.inventory_count || 0;
     document.getElementById('stat-balance').textContent = s.total_balance.toLocaleString('ru-RU') + ' ₽';
     document.getElementById('stat-maint').textContent = s.maintenance ? 'ВКЛ' : 'выкл';
     document.getElementById('stat-maint').style.color = s.maintenance ? '#ff375f' : '#34c759';
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// ============ COMMANDS ============
+async function loadCommands() {
+  try {
+    const s = await api('/admin/api/settings');
+    // Техперерыв
+    const maintOn = s.maintenance === '1';
+    document.getElementById('maintStatus').textContent = maintOn ? 'ВКЛЮЧЕН' : 'Выключен';
+    document.getElementById('maintStatus').style.color = maintOn ? '#ff375f' : '#6e6e85';
+    document.getElementById('maintToggle').textContent = maintOn ? 'Выключить' : 'Включить';
+    document.getElementById('maintToggle').dataset.on = maintOn ? '1' : '0';
+    document.getElementById('maintTextInput').value = s.maintenance_text || 'Технические работы';
+
+    // Бусты
+    const boosts = await api('/admin/api/boosts');
+    updateBoostUI('golden', boosts.golden);
+    updateBoostUI('double', boosts.double);
+    updateBoostUI('discount', boosts.discount);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function updateBoostUI(type, info) {
+  const map = { golden: 'boostGolden', double: 'boostDouble', discount: 'boostDiscount' };
+  const statusEl = document.getElementById(map[type] + 'Status');
+  const startBtn = document.querySelector('button[data-start="' + type + '"]');
+  const stopBtn = document.querySelector('button[data-stop="' + type + '"]');
+  if (!statusEl) return;
+
+  if (info && info.active) {
+    statusEl.textContent = 'ВКЛ';
+    statusEl.style.color = '#34c759';
+    if (startBtn) startBtn.classList.add('hidden');
+    if (stopBtn) stopBtn.classList.remove('hidden');
+
+    // Таймер
+    if (boostTimers[type]) clearInterval(boostTimers[type]);
+    let left = info.seconds_left;
+    boostTimers[type] = setInterval(() => {
+      if (left <= 0) {
+        clearInterval(boostTimers[type]);
+        delete boostTimers[type];
+        loadCommands();
+        return;
+      }
+      const m = Math.floor(left / 60);
+      const s = left % 60;
+      statusEl.textContent = 'ВКЛ · ' + m + ':' + (s < 10 ? '0' : '') + s;
+      left--;
+    }, 1000);
+  } else {
+    statusEl.textContent = 'выкл';
+    statusEl.style.color = '#6e6e85';
+    if (startBtn) startBtn.classList.remove('hidden');
+    if (stopBtn) stopBtn.classList.add('hidden');
+    if (boostTimers[type]) { clearInterval(boostTimers[type]); delete boostTimers[type]; }
+  }
+}
+
+async function toggleMaintenance() {
+  const btn = document.getElementById('maintToggle');
+  const enabled = btn.dataset.on !== '1';
+  const text = document.getElementById('maintTextInput').value || 'Технические работы';
+  try {
+    await api('/admin/api/maintenance', { method: 'POST', body: JSON.stringify({ enabled, text }) });
+    toast(enabled ? '🛑 Техперерыв включён' : '✅ Выключен', 'success');
+    loadCommands();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function saveMaintText() {
+  const text = document.getElementById('maintTextInput').value || 'Технические работы';
+  const enabled = document.getElementById('maintToggle').dataset.on === '1';
+  try {
+    await api('/admin/api/maintenance', { method: 'POST', body: JSON.stringify({ enabled, text }) });
+    toast('Текст сохранён', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function startBoost(type) {
+  try {
+    await api('/admin/api/boosts/start', { method: 'POST', body: JSON.stringify({ type }) });
+    toast('Буст включён!', 'success');
+    loadCommands();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function stopBoost(type) {
+  try {
+    await api('/admin/api/boosts/stop', { method: 'POST', body: JSON.stringify({ type }) });
+    toast('Буст остановлен', 'success');
+    loadCommands();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function giveMoneyByUsername() {
+  const username = document.getElementById('moneyUsername').value.trim();
+  const amount = parseInt(document.getElementById('moneyAmount').value, 10) || 0;
+  if (!username) { toast('Введите @username', 'error'); return; }
+  if (amount === 0) { toast('Введите сумму', 'error'); return; }
+  try {
+    await api('/admin/api/give-money-by-username', {
+      method: 'POST',
+      body: JSON.stringify({ username, amount, notify: true }),
+    });
+    toast('Выдано: ' + amount.toLocaleString('ru-RU') + ' ₽', 'success');
+    document.getElementById('moneyUsername').value = '';
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function givePhoneByUsername() {
+  const username = document.getElementById('phoneUsername').value.trim();
+  const number = document.getElementById('phoneNumber').value.trim();
+  const rarity = document.getElementById('phoneRarity').value;
+  if (!username) { toast('Введите @username', 'error'); return; }
+  if (!number) { toast('Введите номер', 'error'); return; }
+  try {
+    const res = await api('/admin/api/give-phone-by-username', {
+      method: 'POST',
+      body: JSON.stringify({ username, number, rarity, notify: true }),
+    });
+    toast('Номер выдан: ' + res.number, 'success');
+    document.getElementById('phoneNumber').value = '';
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -141,6 +267,7 @@ async function loadUsers() {
         '</div>' +
         '<div class="list-item-actions">' +
           '<button class="primary" data-act="balance" data-id="' + u.id + '" data-bal="' + u.balance + '">💰 Баланс</button>' +
+          '<button class="primary" data-act="givePhone" data-id="' + u.id + '">🎁 Номер</button>' +
           '<button class="' + (u.is_banned ? '' : 'danger') + '" data-act="ban" data-id="' + u.id + '" data-ban="' + (u.is_banned ? '0' : '1') + '">' + (u.is_banned ? '✅ Разблок' : '🚫 Бан') + '</button>' +
         '</div>';
       wrap.appendChild(el);
@@ -157,6 +284,22 @@ async function loadUsers() {
         });
         toast('Баланс обновлён', 'success');
         loadUsers();
+      });
+    });
+
+    wrap.querySelectorAll('button[data-act="givePhone"]').forEach(b => {
+      b.addEventListener('click', async () => {
+        const number = prompt('Введите номер:');
+        if (!number) return;
+        const rarity = prompt('Редкость (common/rare/epic/mythic/legendary/secret):', 'legendary');
+        if (!rarity) return;
+        try {
+          await api('/admin/api/users/' + b.dataset.id + '/give-phone', {
+            method: 'POST',
+            body: JSON.stringify({ number, rarity, notify: true }),
+          });
+          toast('Номер выдан: ' + number, 'success');
+        } catch (e) { toast(e.message, 'error'); }
       });
     });
 
@@ -191,6 +334,10 @@ async function loadSpins() {
       const name = RARITY_NAMES[s.rarity] || s.rarity;
       const el = document.createElement('div');
       el.className = 'list-item';
+      let multStr = '';
+      if (s.multiplier && s.multiplier > 1) {
+        multStr = ' · ✨×' + s.multiplier;
+      }
       el.innerHTML =
         '<div class="list-item-info">' +
           '<div class="list-item-title">' +
@@ -200,7 +347,7 @@ async function loadSpins() {
           '<div class="list-item-sub">' +
             '<span style="color:' + color + ';font-weight:800">' + name + '</span>' +
             ' · ' + (s.first_name || s.username || 'Игрок') +
-            ' · ' + s.price.toLocaleString('ru-RU') + ' ₽' +
+            ' · ' + s.price.toLocaleString('ru-RU') + ' ₽' + multStr +
             (s.is_multi ? ' · ×5' : '') +
             ' · ' + (s.created_at ? s.created_at.slice(0, 19).replace('T', ' ') : '') +
           '</div>' +
@@ -224,16 +371,13 @@ async function sendBroadcast() {
   const text = document.getElementById('broadcast-text').value.trim();
   if (!text) { toast('Введите текст', 'error'); return; }
   if (!confirm('Отправить сообщение всем игрокам?')) return;
-
   const btn = document.getElementById('broadcast-send');
   const statusEl = document.getElementById('broadcast-status');
   btn.disabled = true;
   statusEl.textContent = 'Отправка...';
-
   try {
     const res = await api('/admin/api/broadcast', {
-      method: 'POST',
-      body: JSON.stringify({ text }),
+      method: 'POST', body: JSON.stringify({ text }),
     });
     statusEl.textContent = '✅ Отправлено: ' + res.sent + ' / Ошибок: ' + res.failed;
     toast('Рассылка завершена', 'success');
@@ -243,6 +387,25 @@ async function sendBroadcast() {
     toast(e.message, 'error');
   } finally {
     btn.disabled = false;
+  }
+}
+
+async function giveAllMoney() {
+  const amount = parseInt(document.getElementById('give-all-amount').value, 10) || 0;
+  const notify = document.getElementById('give-all-notify').checked;
+  if (amount <= 0) { toast('Введите сумму > 0', 'error'); return; }
+  if (!confirm('Выдать всем по ' + amount.toLocaleString('ru-RU') + ' ₽?')) return;
+  const statusEl = document.getElementById('give-all-status');
+  statusEl.textContent = 'Обработка...';
+  try {
+    const res = await api('/admin/api/give-money-all', {
+      method: 'POST', body: JSON.stringify({ amount, notify }),
+    });
+    statusEl.textContent = '✅ ' + res.users_count + ' игроков получили по ' + amount.toLocaleString('ru-RU') + ' ₽';
+    toast('Готово!', 'success');
+  } catch (e) {
+    statusEl.textContent = '❌ ' + e.message;
+    toast(e.message, 'error');
   }
 }
 
@@ -276,7 +439,6 @@ async function loadPromos() {
         '</div>';
       wrap.appendChild(el);
     });
-
     wrap.querySelectorAll('button[data-act="toggle"]').forEach(b => {
       b.addEventListener('click', async () => {
         await api('/admin/api/promos/' + b.dataset.id + '/toggle', { method: 'POST' });
@@ -299,10 +461,8 @@ async function createPromo() {
   const amount = parseInt(document.getElementById('promo-amount').value, 10);
   const reusable = document.getElementById('promo-reusable').checked;
   const maxUses = parseInt(document.getElementById('promo-maxuses').value, 10) || 0;
-
   if (!code) { toast('Введите код', 'error'); return; }
   if (!amount || amount < 0) { toast('Введите сумму', 'error'); return; }
-
   try {
     await api('/admin/api/promos', {
       method: 'POST',
@@ -336,7 +496,6 @@ async function loadAdmins() {
         '</div>';
       wrap.appendChild(el);
     });
-
     wrap.querySelectorAll('button[data-act="del"]').forEach(b => {
       b.addEventListener('click', async () => {
         if (!confirm('Удалить админа?')) return;
@@ -352,9 +511,7 @@ async function createAdmin() {
   const login = document.getElementById('admin-login-new').value.trim();
   const password = document.getElementById('admin-password-new').value;
   const role = document.getElementById('admin-role').value;
-
   if (!login || !password) { toast('Заполните поля', 'error'); return; }
-
   try {
     await api('/admin/api/admins', {
       method: 'POST',
@@ -399,26 +556,6 @@ async function loadSettings() {
   } catch (e) { toast(e.message, 'error'); }
 }
 
-// ============ MAINTENANCE ============
-async function loadMaintenance() {
-  try {
-    const s = await api('/admin/api/settings');
-    document.getElementById('maint-toggle').checked = s.maintenance === '1';
-    document.getElementById('maint-text').value = s.maintenance_text || 'Технические работы';
-  } catch (e) { toast(e.message, 'error'); }
-}
-
-async function saveMaintenance() {
-  const enabled = document.getElementById('maint-toggle').checked;
-  const text = document.getElementById('maint-text').value || 'Технические работы';
-  try {
-    await api('/admin/api/maintenance', {
-      method: 'POST', body: JSON.stringify({ enabled, text }),
-    });
-    toast(enabled ? '🛑 Техперерыв включён' : '✅ Выключен', 'success');
-  } catch (e) { toast(e.message, 'error'); }
-}
-
 // ============ INIT ============
 async function init() {
   setupTabs();
@@ -442,10 +579,23 @@ async function init() {
   document.getElementById('spin-rarity-filter').addEventListener('change', loadSpins);
 
   document.getElementById('broadcast-send').addEventListener('click', sendBroadcast);
+  document.getElementById('give-all-btn').addEventListener('click', giveAllMoney);
 
   document.getElementById('promo-create').addEventListener('click', createPromo);
   document.getElementById('admin-create').addEventListener('click', createAdmin);
-  document.getElementById('maint-save').addEventListener('click', saveMaintenance);
+
+  // Commands
+  document.getElementById('maintToggle').addEventListener('click', toggleMaintenance);
+  document.getElementById('maintSaveText').addEventListener('click', saveMaintText);
+  document.getElementById('giveMoneyBtn').addEventListener('click', giveMoneyByUsername);
+  document.getElementById('givePhoneBtn').addEventListener('click', givePhoneByUsername);
+
+  document.querySelectorAll('button[data-start]').forEach(b => {
+    b.addEventListener('click', () => startBoost(b.dataset.start));
+  });
+  document.querySelectorAll('button[data-stop]').forEach(b => {
+    b.addEventListener('click', () => stopBoost(b.dataset.stop));
+  });
 
   if (await checkAuth()) {
     showPanel();
