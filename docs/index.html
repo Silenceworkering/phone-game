@@ -12,6 +12,11 @@
 <div class="app">
   <div class="header">
     <div class="header-top">
+      <button class="burger-btn" id="burgerBtn" type="button">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
       <div class="stat-pill">
         <span class="icon">💰</span>
         <div class="stat-stack">
@@ -46,6 +51,63 @@
     </div>
   </div>
 
+  <!-- БОКОВОЕ МЕНЮ -->
+  <div class="side-menu-backdrop" id="sideMenuBackdrop"></div>
+  <aside class="side-menu" id="sideMenu">
+    <div class="side-menu-header">
+      <div class="side-menu-logo">🎰 Phone Numbers</div>
+      <button class="side-menu-close" id="sideMenuClose" type="button">✕</button>
+    </div>
+
+    <div class="side-menu-list">
+      <div class="side-menu-item" data-page="roulette">
+        <span class="smi-icon">🎰</span>
+        <span class="smi-text">Крутка</span>
+      </div>
+      <div class="side-menu-item" data-page="inventory">
+        <span class="smi-icon">📦</span>
+        <span class="smi-text">Инвентарь</span>
+        <span class="smi-badge" id="smiInvCount">0</span>
+      </div>
+      <div class="side-menu-item" data-page="quests">
+        <span class="smi-icon">🏆</span>
+        <span class="smi-text">Квесты</span>
+        <span class="smi-badge smi-badge-new" id="smiQuestCount">0</span>
+      </div>
+      <div class="side-menu-item" data-page="market">
+        <span class="smi-icon">💱</span>
+        <span class="smi-text">Рынок</span>
+      </div>
+      <div class="side-menu-item" data-page="dice">
+        <span class="smi-icon">🎲</span>
+        <span class="smi-text">Кости</span>
+      </div>
+      <div class="side-menu-item" data-page="craft">
+        <span class="smi-icon">⚗️</span>
+        <span class="smi-text">Крафт</span>
+      </div>
+      <div class="side-menu-item" data-page="top">
+        <span class="smi-icon">🏆</span>
+        <span class="smi-text">Топ игроков</span>
+      </div>
+      <div class="side-menu-item" data-page="profile">
+        <span class="smi-icon">👤</span>
+        <span class="smi-text">Профиль</span>
+      </div>
+      <div class="side-menu-item" data-page="referral">
+        <span class="smi-icon">🎁</span>
+        <span class="smi-text">Пригласить друга</span>
+      </div>
+    </div>
+
+    <div class="side-menu-footer">
+      <button class="side-menu-sound" id="soundToggle" type="button">
+        <span id="soundIcon">🔊</span>
+        <span id="soundText">Звук вкл</span>
+      </button>
+    </div>
+  </aside>
+
   <div class="tabs" id="tabs">
     <div class="tab active" data-page="roulette">🎰</div>
     <div class="tab" data-page="inventory">📦 <span class="count" id="tabInvCount">0</span></div>
@@ -78,34 +140,26 @@
         <div class="selector-line"></div>
       </div>
 
-      <!-- RESULT OVERLAY (одиночный спин) -->
       <div class="result-overlay" id="resultOverlay">
         <div class="result-header">
           <div class="result-rarity" id="resultRarity"></div>
         </div>
-
         <div class="phone-plate" id="phonePlate">
           <div class="phone-plate-inner">
             <span class="phone-flag" id="phoneFlag">🇷🇺</span>
             <span class="phone-number" id="phoneNumber">+7 (999) 000-00-00</span>
           </div>
         </div>
-
         <div class="result-operator" id="resultOperator">Россия · МТС</div>
-
         <div class="beauty-list" id="beautyList"></div>
-
         <div class="result-total" id="resultTotal"></div>
-
         <div class="result-price-final" id="resultPriceFinal"></div>
-
         <div class="result-actions" id="resultActions">
           <button class="result-btn keep" id="btnKeep" type="button">📦 Оставить</button>
           <button class="result-btn sell" id="btnSellNow" type="button">💵 Продать</button>
         </div>
       </div>
 
-      <!-- MULTI OVERLAY (×5) -->
       <div class="multi-overlay" id="multiOverlay">
         <div class="multi-header">
           <div class="multi-title">Результат ×5</div>
@@ -207,6 +261,75 @@
         <div class="ach-list" id="achList"></div>
       </div>
     </div>
+
+    <!-- QUESTS -->
+    <div class="page" id="page-quests">
+      <h3 class="page-title">🏆 Ежедневные квесты</h3>
+      <p class="page-hint">Обновляются каждый день в 00:00 UTC</p>
+      <div class="quests-list" id="questsList"></div>
+    </div>
+
+    <!-- MARKET -->
+    <div class="page" id="page-market">
+      <h3 class="page-title">💱 Рынок номеров</h3>
+
+      <div class="market-tabs">
+        <button class="market-tab active" data-market="all">🛒 Все лоты</button>
+        <button class="market-tab" data-market="my">📤 Мои лоты</button>
+      </div>
+
+      <div id="marketList" class="market-list"></div>
+    </div>
+
+    <!-- DICE -->
+    <div class="page" id="page-dice">
+      <h3 class="page-title">🎲 Кости</h3>
+      <p class="page-hint">Создай игру со ставкой — другой игрок зайдёт и вы сыграете</p>
+
+      <button class="dice-create-btn" id="diceCreateBtn" type="button">➕ Создать игру</button>
+
+      <div id="diceList" class="dice-list"></div>
+    </div>
+
+    <!-- REFERRAL -->
+    <div class="page" id="page-referral">
+      <h3 class="page-title">🎁 Пригласить друга</h3>
+
+      <div class="ref-card">
+        <div class="ref-icon">🎁</div>
+        <div class="ref-title">Приглашай друзей!</div>
+        <div class="ref-desc">
+          За каждого друга, который зайдёт по твоей ссылке:
+        </div>
+        <div class="ref-rewards">
+          <div class="ref-reward-line">
+            <span>👤 Ты получаешь</span>
+            <b>+50 000 ₽</b>
+          </div>
+          <div class="ref-reward-line">
+            <span>🎁 Друг получает</span>
+            <b>+30 000 ₽</b>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-link-box">
+        <div class="ref-link-label">Твоя ссылка:</div>
+        <input type="text" class="ref-link-input" id="refLinkInput" readonly>
+        <button class="ref-copy-btn" id="refCopyBtn" type="button">📋 Скопировать</button>
+      </div>
+
+      <div class="ref-stats">
+        <div class="ref-stat-item">
+          <div class="ref-stat-value" id="refCount">0</div>
+          <div class="ref-stat-label">Друзей пришло</div>
+        </div>
+        <div class="ref-stat-item">
+          <div class="ref-stat-value" id="refEarned">0 ₽</div>
+          <div class="ref-stat-label">Заработано</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="controls" id="controls">
@@ -221,7 +344,8 @@
   </div>
 </div>
 
-<!-- МОДАЛКА: ШКАЛА УДАЧИ -->
+<!-- МОДАЛКИ -->
+
 <div class="modal-backdrop" id="luckModal">
   <div class="modal luck-modal">
     <div class="luck-modal-head">
@@ -232,7 +356,6 @@
       Каждый 100-й бросок — удача ×5: из усиленных шансов выпадают редкие номера.<br>
       Каждый 1000-й — супер-удача ×25.
     </div>
-
     <div class="luck-progress-card">
       <div class="luck-progress-title" id="luckModalNext">Следующая удача ×5</div>
       <div class="luck-progress-bar">
@@ -243,34 +366,13 @@
         <span id="luckModalProgress">25/100</span>
       </div>
     </div>
-
     <div class="luck-modal-super" id="luckModalSuper">До супер-удачи ×25: 975 круток</div>
-
     <div class="modal-actions" style="margin-top:16px;">
       <button class="modal-btn sell" id="luckOkBtn" type="button" style="flex:1;">Понятно</button>
     </div>
   </div>
 </div>
 
-<!-- МОДАЛКА: SELL -->
-<div class="modal-backdrop" id="sellModal">
-  <div class="modal">
-    <div class="modal-flag" id="modalFlag"></div>
-    <div class="modal-rarity" id="modalRarity"></div>
-    <div class="modal-number" id="modalNumber"></div>
-    <div class="modal-op" id="modalOp"></div>
-    <div class="modal-price-box">
-      <div class="modal-price-label">Цена продажи</div>
-      <div class="modal-price-value" id="modalPrice"></div>
-    </div>
-    <div class="modal-actions">
-      <button class="modal-btn cancel" id="modalCancel" type="button">Отмена</button>
-      <button class="modal-btn sell" id="modalSell" type="button">Продать</button>
-    </div>
-  </div>
-</div>
-
-<!-- МОДАЛКА: CRAFT -->
 <div class="modal-backdrop" id="craftModal">
   <div class="modal">
     <div class="modal-flag" id="craftFlag">⚗️</div>
@@ -287,7 +389,6 @@
   </div>
 </div>
 
-<!-- МОДАЛКА: ACHIEVEMENT -->
 <div class="modal-backdrop" id="achModal">
   <div class="modal">
     <div class="modal-flag" id="achFlag">🏅</div>
@@ -304,7 +405,6 @@
   </div>
 </div>
 
-<!-- МОДАЛКА: ПЕРЕВОД ДЕНЕГ -->
 <div class="modal-backdrop" id="moneyModal">
   <div class="modal money-modal">
     <div class="money-modal-head">
@@ -337,7 +437,6 @@
   </div>
 </div>
 
-<!-- МОДАЛКА: СОЗДАНИЕ ОБМЕНА -->
 <div class="modal-backdrop" id="tradeModal">
   <div class="modal trade-modal">
     <div class="trade-modal-title">🔄 Новый обмен</div>
@@ -367,7 +466,6 @@
   </div>
 </div>
 
-<!-- ПОДТВЕРЖДЕНИЕ -->
 <div class="modal-backdrop" id="tradeConfirmModal">
   <div class="modal">
     <div class="modal-flag" id="confirmIcon">⚠️</div>
@@ -380,9 +478,86 @@
   </div>
 </div>
 
+<!-- МОДАЛКА: выставление на рынок -->
+<div class="modal-backdrop" id="marketListModal">
+  <div class="modal">
+    <div class="modal-flag">💱</div>
+    <div class="modal-rarity" style="color:#ffd60a;">Выставить на рынок</div>
+    <div class="modal-number" id="marketListNumber" style="font-family:monospace;font-size:16px;"></div>
+    <div class="trade-modal-label" style="margin-top:16px;text-align:left;">Цена продажи</div>
+    <input type="number" class="trade-input big" id="marketPriceInput" placeholder="0 ₽" min="10" value="">
+    <div class="money-quick" style="margin-top:8px;">
+      <button class="money-quick-btn" data-mprice="500" type="button">500</button>
+      <button class="money-quick-btn" data-mprice="5000" type="button">5 000</button>
+      <button class="money-quick-btn" data-mprice="50000" type="button">50 000</button>
+      <button class="money-quick-btn" data-mprice="500000" type="button">500 000</button>
+    </div>
+    <div class="modal-actions" style="margin-top:16px;">
+      <button class="modal-btn cancel" id="marketListCancel" type="button">Отмена</button>
+      <button class="modal-btn sell" id="marketListConfirm" type="button">Выставить</button>
+    </div>
+  </div>
+</div>
+
+<!-- МОДАЛКА: создание игры в кости -->
+<div class="modal-backdrop" id="diceCreateModal">
+  <div class="modal">
+    <div class="modal-flag">🎲</div>
+    <div class="modal-rarity" style="color:#ffd60a;">Создать игру</div>
+    <div class="modal-number" style="font-size:15px;font-family:inherit;">Введи свою ставку</div>
+    <input type="number" class="trade-input big" id="diceBetInput" placeholder="0 ₽" min="100" value="">
+    <div class="money-quick" style="margin-top:8px;">
+      <button class="money-quick-btn" data-dbet="1000" type="button">1 000</button>
+      <button class="money-quick-btn" data-dbet="5000" type="button">5 000</button>
+      <button class="money-quick-btn" data-dbet="10000" type="button">10 000</button>
+      <button class="money-quick-btn" data-dbet="50000" type="button">50 000</button>
+    </div>
+    <div class="modal-actions" style="margin-top:16px;">
+      <button class="modal-btn cancel" id="diceCreateCancel" type="button">Отмена</button>
+      <button class="modal-btn sell" id="diceCreateConfirm" type="button">Создать</button>
+    </div>
+  </div>
+</div>
+
+<!-- МОДАЛКА: результат костей -->
+<div class="modal-backdrop" id="diceResultModal">
+  <div class="modal">
+    <div class="modal-flag" id="diceResultIcon">🎲</div>
+    <div class="modal-rarity" id="diceResultTitle" style="color:#ffd60a;">Результат</div>
+    <div class="dice-visual" id="diceVisual">
+      <div class="dice-cube" id="diceCube1">?</div>
+      <div class="dice-vs">VS</div>
+      <div class="dice-cube" id="diceCube2">?</div>
+    </div>
+    <div class="modal-number" id="diceResultText" style="font-size:15px;font-family:inherit;margin-top:14px;"></div>
+    <div class="modal-actions" style="margin-top:16px;">
+      <button class="modal-btn sell" id="diceResultOk" type="button" style="flex:1;">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- КАРТОЧКА НОМЕРА (для рынка/инвентаря) -->
+<div class="modal-backdrop" id="phoneInfoModal">
+  <div class="modal">
+    <div class="modal-flag" id="pimFlag">📞</div>
+    <div class="modal-rarity" id="pimRarity"></div>
+    <div class="modal-number" id="pimNumber"></div>
+    <div class="modal-op" id="pimOp"></div>
+    <div class="modal-price-box">
+      <div class="modal-price-label">Цена</div>
+      <div class="modal-price-value" id="pimPrice"></div>
+    </div>
+    <div class="modal-actions" id="pimActions">
+      <button class="modal-btn cancel" id="pimCancel" type="button">Закрыть</button>
+      <button class="modal-btn sell" id="pimSell" type="button">💵 Продать</button>
+      <button class="modal-btn cancel" id="pimListMarket" type="button" style="background:rgba(10,132,255,.15);color:#5e9dff;border-color:rgba(10,132,255,.4);">💱 На рынок</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <div class="fireworks" id="fireworks"></div>
 
-<script type="module" src="app.js?v=2026zz1"></script>
+<script type="module" src="app.js?v=2026v2"></script>
 </body>
 </html>
