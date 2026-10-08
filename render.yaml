@@ -8,6 +8,8 @@ services:
     envVars:
       - key: BOT_TOKEN
         sync: false
+      - key: BOT_USERNAME
+        sync: false
       - key: OWNER_TELEGRAM_ID
         sync: false
       - key: WEBAPP_URL
