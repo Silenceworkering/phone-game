@@ -85,7 +85,6 @@ async function authenticate() {
 function updateHeader() {
   setText('balance', money(state.user?.balance));
   setText('spinCount', (state.user?.spins_total || 0).toLocaleString('ru-RU'));
-  setText('tabInvCount', state.inventory.length);
   setText('smiInvCount', state.inventory.length);
   const luck = state.user?.luck;
   if (luck) {
@@ -113,7 +112,7 @@ function switchPage(page) {
   if (!$('page-' + page)) return;
   state.page = page;
   document.querySelectorAll('.page').forEach(el => el.classList.toggle('active', el.id === 'page-' + page));
-  document.querySelectorAll('.tab,.side-menu-item').forEach(el =>
+  document.querySelectorAll('.side-menu-item').forEach(el =>
     el.classList.toggle('active', el.dataset.page === page));
   $('controls').style.display = page === 'roulette' ? 'flex' : 'none';
   closeMenu();
@@ -126,7 +125,7 @@ function switchPage(page) {
 }
 function closeMenu() { $('sideMenu').classList.remove('open'); hide('sideMenuBackdrop'); }
 function bindNavigation() {
-  document.querySelectorAll('.tab,.side-menu-item').forEach(el =>
+  document.querySelectorAll('.side-menu-item').forEach(el =>
     el.addEventListener('click', () => switchPage(el.dataset.page)));
   $('burgerBtn').addEventListener('click', () => {
     $('sideMenu').classList.add('open'); show('sideMenuBackdrop');
@@ -214,9 +213,47 @@ function renderReels(number) {
     escapeHtml(flag) + '</span>' + escapeHtml(index === 2 && number ? number : '+7 ••• •••-••-••') +
     '<span class="op">' + escapeHtml(operator?.name || '') + '</span></div>').join('');
 }
+function previewNumber(number) {
+  const digits = (number.match(/\d/g) || []).length;
+  let position = 0;
+  return number.replace(/\d/g, digit =>
+    ++position <= digits - 6 ? digit : String(Math.floor(Math.random() * 10)));
+}
+async function animateSpinReveal(phone) {
+  const reel = $('reels');
+  const windowEl = $('rouletteWindow');
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (!reel.animate || reducedMotion) {
+    renderReels(phone.number);
+    windowEl.className = 'roulette-window rarity-' + phone.rarity;
+    return;
+  }
+
+  const centerIndex = 14;
+  reel.innerHTML = Array.from({ length: 17 }, (_, index) => {
+    const number = index === centerIndex ? phone.number : previewNumber(phone.number);
+    return '<div class="reel-row' + (index === centerIndex ? ' center' : '') +
+      '"><span class="flag">' + escapeHtml(phone.country_flag || '📞') +
+      '</span>' + escapeHtml(number) + '<span class="op">' +
+      escapeHtml(phone.operator_name || '') + '</span></div>';
+  }).join('');
+
+  // Каждый ряд имеет высоту 44px; оставляем выигрышный ряд по центру окна.
+  const distance = (centerIndex - 2) * 44;
+  const animation = reel.animate(
+    [{ transform: 'translateY(0)' }, { transform: 'translateY(-' + distance + 'px)' }],
+    { duration: 1250, easing: 'cubic-bezier(.12,.72,.18,1)', fill: 'forwards' }
+  );
+  try { await animation.finished; } catch { /* При отмене всё равно показываем результат. */ }
+  animation.cancel();
+  renderReels(phone.number);
+  windowEl.className = 'roulette-window rarity-' + phone.rarity;
+  await new Promise(resolve => setTimeout(resolve, 180));
+}
 function closeResults() {
   hide('resultOverlay'); hide('multiOverlay');
   state.pending = [];
+  $('rouletteWindow').className = 'roulette-window';
   renderReels();
 }
 function renderSpinResult() {
@@ -256,6 +293,7 @@ async function spin(count) {
   if (state.busy || state.pending.length || !state.user) return;
   state.busy = true;
   $('spinBtn').disabled = $('spinBtn5').disabled = true;
+  $('rouletteWindow').className = 'roulette-window spinning';
   playTone(420);
   try {
     const body = { country: state.country, operator: state.operator, min_rarity: state.rarity };
@@ -266,11 +304,16 @@ async function spin(count) {
     state.user.spins_total = result.spins_total;
     state.user.luck = result.luck_info;
     updateHeader();
+    const order = state.meta?.rarity_order || [];
+    const featured = state.pending.reduce((best, phone) =>
+      order.indexOf(phone.rarity) > order.indexOf(best.rarity) ? phone : best);
+    await animateSpinReveal(featured);
     renderSpinResult();
     playTone(850);
     notifyAchievements(result.new_achievements);
   } catch (error) { errorMessage(error); }
   finally {
+    $('rouletteWindow').classList.remove('spinning');
     state.busy = false;
     $('spinBtn').disabled = $('spinBtn5').disabled = false;
   }
