@@ -155,16 +155,6 @@ body::before{
 }
 .side-menu-sound:active{ transform:scale(.98); background:rgba(255,255,255,.1); }
 
-/* ============ TABS ============ */
-.tabs{ display:flex; gap:4px; padding:6px 12px 0; flex-shrink:0; }
-.tab{
-  flex:1; padding:8px 4px; background:var(--card); border:1px solid var(--border);
-  border-radius:11px; color:var(--muted); font-size:14px; font-weight:800;
-  cursor:pointer; transition:all .2s; display:flex; align-items:center; justify-content:center; gap:3px;
-}
-.tab.active{ background:linear-gradient(135deg,#0a84ff,#bf5af2); color:#fff; border-color:transparent; box-shadow:0 6px 18px rgba(10,132,255,.35); }
-.tab .count{ font-size:10px; background:rgba(255,255,255,.15); padding:1px 5px; border-radius:6px; font-weight:800; }
-
 /* ============ PAGES ============ */
 .pages{ flex:1; position:relative; overflow:hidden; min-height:0; }
 .page{
@@ -211,6 +201,15 @@ body::before{
 .roulette-window.rarity-mythic{ border-color:var(--mythic); box-shadow:0 0 60px rgba(255,55,95,.65); }
 .roulette-window.rarity-legendary{ border-color:var(--legendary); box-shadow:0 0 65px rgba(255,214,10,.75); }
 .roulette-window.rarity-secret{ border-color:var(--secret); box-shadow:0 0 70px rgba(0,229,255,.85); }
+.roulette-window.spinning{ border-color:rgba(94,157,255,.6); }
+.roulette-window.spinning .selector-line{ animation:spinFocus 850ms ease-in-out infinite alternate; }
+@keyframes spinFocus{
+  from{ border-color:rgba(255,255,255,.13); background:rgba(255,255,255,.025); }
+  to{ border-color:rgba(94,157,255,.42); background:rgba(94,157,255,.08); }
+}
+@media (prefers-reduced-motion:reduce){
+  .roulette-window.spinning .selector-line{ animation:none; }
+}
 
 .roulette-window::before,.roulette-window::after{
   content:''; position:absolute; left:0; right:0; height:38%; z-index:5; pointer-events:none;
