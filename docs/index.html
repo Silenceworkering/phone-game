@@ -6,7 +6,7 @@
 <title>Phone Numbers</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="config.js?v=2026v4"></script>
-<link rel="stylesheet" href="styles.css?v=2026v4">
+<link rel="stylesheet" href="styles.css?v=2026v6">
 </head>
 <body>
 
@@ -70,6 +70,10 @@
         <span class="smi-text">Инвентарь</span>
         <span class="smi-badge" id="smiInvCount">0</span>
       </div>
+      <div class="side-menu-item" data-page="countries">
+        <span class="smi-icon">🌍</span>
+        <span class="smi-text">Страны</span>
+      </div>
       <div class="side-menu-item" data-page="quests">
         <span class="smi-icon">🏆</span>
         <span class="smi-text">Квесты</span>
@@ -108,15 +112,6 @@
       </button>
     </div>
   </aside>
-
-  <div class="tabs" id="tabs">
-    <div class="tab active" data-page="roulette">🎰</div>
-    <div class="tab" data-page="inventory">📦 <span class="count" id="tabInvCount">0</span></div>
-    <div class="tab" data-page="countries">🌍</div>
-    <div class="tab" data-page="craft">⚗️</div>
-    <div class="tab" data-page="top">🏆</div>
-    <div class="tab" data-page="profile">👤</div>
-  </div>
 
   <div class="promo-bar" id="promoBar">
     <div class="promo-bar-head" id="promoBarHead">
@@ -564,6 +559,6 @@
 <div class="toast" id="toast"></div>
 <div class="fireworks" id="fireworks"></div>
 
-<script type="module" src="app.js?v=2026v5"></script>
+<script type="module" src="app.js?v=2026v7"></script>
 </body>
 </html>
