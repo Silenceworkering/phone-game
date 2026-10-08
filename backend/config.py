@@ -4,6 +4,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     BOT_TOKEN: str = ""
+    BOT_USERNAME: str = ""
     OWNER_TELEGRAM_ID: int = 0
     WEBAPP_URL: str = "https://example.github.io/phone-game/"
 
