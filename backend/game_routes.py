@@ -14,7 +14,7 @@ from .auth import (
 )
 from .database import get_db, get_setting
 from .models import (
-    User, Promocode, PromoUse, Inventory, SpinLog, Achievement,
+    User, Promocode, PromoUse, Inventory, SpinLog, PendingSpin, Achievement,
     Trade, Quest, MarketListing, DiceGame, ReferralReward,
 )
 from .config import settings
@@ -60,11 +60,10 @@ def auth_telegram(payload: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="init_data required")
 
     if not settings.BOT_TOKEN:
-        tg_data = {"id": 123456789, "first_name": "Dev", "username": "dev"}
-    else:
-        tg_data = verify_telegram_init_data(init_data)
-        if not tg_data:
-            raise HTTPException(status_code=401, detail="Invalid init_data")
+        raise HTTPException(status_code=503, detail="BOT_TOKEN не настроен")
+    tg_data = verify_telegram_init_data(init_data)
+    if not tg_data:
+        raise HTTPException(status_code=401, detail="Invalid init_data")
 
     existing = db.query(User).filter(User.telegram_id == tg_data["id"]).first()
     is_new = existing is None
@@ -298,6 +297,39 @@ def _is_vip_number(number: str, multiplier: float) -> bool:
     return False
 
 
+def _ensure_no_pending_spin(db: Session, telegram_id: int):
+    if db.query(PendingSpin.id).filter(PendingSpin.telegram_id == telegram_id).first():
+        raise HTTPException(status_code=409, detail="Сначала сохрани или продай предыдущий результат")
+
+
+def _pending_result(db: Session, telegram_id: int, phone: dict) -> dict:
+    pending = PendingSpin(
+        telegram_id=telegram_id,
+        phone_json=json.dumps(phone, ensure_ascii=False),
+    )
+    db.add(pending)
+    db.flush()
+    return {**phone, "pending_id": pending.id}
+
+
+def _get_pending_for_claim(db: Session, telegram_id: int, ids) -> list:
+    if not isinstance(ids, list) or not ids or len(ids) > 5:
+        raise HTTPException(status_code=400, detail="pending_ids required")
+    try:
+        normalized = [int(value) for value in ids]
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Неверные идентификаторы")
+    if len(set(normalized)) != len(normalized):
+        raise HTTPException(status_code=400, detail="Повторяющиеся идентификаторы")
+    rows = db.query(PendingSpin).filter(
+        PendingSpin.telegram_id == telegram_id,
+        PendingSpin.id.in_(normalized),
+    ).with_for_update().all()
+    if len(rows) != len(normalized):
+        raise HTTPException(status_code=404, detail="Результат крутки не найден")
+    return rows
+
+
 def _update_quests(db, user, action_type: str, amount: int = 1):
     today = date.today().isoformat()
     quests = db.query(Quest).filter(
@@ -338,6 +370,7 @@ def _create_daily_quests(db, user, today: str):
 def spin(payload: dict, user: Optional[User] = Depends(get_current_user_optional), db: Session = Depends(get_db)):
     if not user: raise HTTPException(status_code=401, detail="Not authorized")
     _check_maintenance(db)
+    _ensure_no_pending_spin(db, user.telegram_id)
 
     country_code = (payload.get("country") or "RU").upper()
     operator_code = payload.get("operator") or None
@@ -363,6 +396,15 @@ def spin(payload: dict, user: Optional[User] = Depends(get_current_user_optional
         operator_code=phone["operator_code"], multiplier=beauty["total"],
         beauty_json=json.dumps(beauty["components"], ensure_ascii=False),
     ))
+    phone_result = {
+        "number": phone["number"], "rarity": rarity, "price": price,
+        "country_code": phone["country_code"], "country_flag": phone["country_flag"],
+        "country_name": phone["country_name"], "operator_code": phone["operator_code"],
+        "operator_name": phone["operator_name"],
+        "multiplier": beauty["total"], "components": beauty["components"],
+        "is_vip": _is_vip_number(phone["number"], beauty["total"]),
+    }
+    phone_result = _pending_result(db, user.telegram_id, phone_result)
     user.spins_total = spins_new
     db.flush()
     new_ach = _check_achievements(db, user)
@@ -370,14 +412,7 @@ def spin(payload: dict, user: Optional[User] = Depends(get_current_user_optional
     db.commit()
 
     return {
-        "phone": {
-            "number": phone["number"], "rarity": rarity, "price": price,
-            "country_code": phone["country_code"], "country_flag": phone["country_flag"],
-            "country_name": phone["country_name"], "operator_code": phone["operator_code"],
-            "operator_name": phone["operator_name"],
-            "multiplier": beauty["total"], "components": beauty["components"],
-            "is_vip": _is_vip_number(phone["number"], beauty["total"]),
-        },
+        "phone": phone_result,
         "cost": cost, "balance": user.balance, "spins_total": user.spins_total,
         "luck_mult": luck_mult, "luck_info": get_luck_info(user.spins_total),
         "new_achievements": new_ach,
@@ -388,6 +423,7 @@ def spin(payload: dict, user: Optional[User] = Depends(get_current_user_optional
 def spin5(payload: dict, user: Optional[User] = Depends(get_current_user_optional), db: Session = Depends(get_db)):
     if not user: raise HTTPException(status_code=401, detail="Not authorized")
     _check_maintenance(db)
+    _ensure_no_pending_spin(db, user.telegram_id)
 
     country_code = (payload.get("country") or "RU").upper()
     operator_code = payload.get("operator") or None
@@ -410,14 +446,15 @@ def spin5(payload: dict, user: Optional[User] = Depends(get_current_user_optiona
         beauty = gd.calculate_beauty(phone["number"], phone["beauty_prefix"])
         price = int(gd.calc_price(rarity, beauty["total"]) * price_mult)
 
-        phones.append({
+        phone_result = {
             "number": phone["number"], "rarity": rarity, "price": price,
             "country_code": phone["country_code"], "country_flag": phone["country_flag"],
             "country_name": phone["country_name"], "operator_code": phone["operator_code"],
             "operator_name": phone["operator_name"],
             "multiplier": beauty["total"], "components": beauty["components"],
             "is_vip": _is_vip_number(phone["number"], beauty["total"]),
-        })
+        }
+        phones.append(_pending_result(db, user.telegram_id, phone_result))
 
         db.add(SpinLog(
             telegram_id=user.telegram_id, rarity=rarity, number=phone["number"],
@@ -444,6 +481,15 @@ def spin5(payload: dict, user: Optional[User] = Depends(get_current_user_optiona
 # ============================================================
 # ИНВЕНТАРЬ
 # ============================================================
+@router.get("/pending")
+def get_pending_spins(user: Optional[User] = Depends(get_current_user_optional), db: Session = Depends(get_db)):
+    if not user: raise HTTPException(status_code=401, detail="Not authorized")
+    rows = db.query(PendingSpin).filter(
+        PendingSpin.telegram_id == user.telegram_id
+    ).order_by(PendingSpin.id).all()
+    return {"phones": [{**json.loads(row.phone_json), "pending_id": row.id} for row in rows]}
+
+
 @router.get("/inventory")
 def get_inventory(user: Optional[User] = Depends(get_current_user_optional), db: Session = Depends(get_db)):
     if not user: raise HTTPException(status_code=401, detail="Not authorized")
@@ -467,11 +513,10 @@ def get_inventory(user: Optional[User] = Depends(get_current_user_optional), db:
 @router.post("/inventory/keep")
 def keep_phone(payload: dict, user: Optional[User] = Depends(get_current_user_optional), db: Session = Depends(get_db)):
     if not user: raise HTTPException(status_code=401, detail="Not authorized")
-    phones = payload.get("phones") or []
-    if not isinstance(phones, list) or not phones: raise HTTPException(status_code=400, detail="phones required")
+    pending = _get_pending_for_claim(db, user.telegram_id, payload.get("pending_ids"))
     added = 0
-    for p in phones:
-        if not p.get("number") or not p.get("rarity"): continue
+    for row in pending:
+        p = json.loads(row.phone_json)
         components = p.get("components") or []
         db.add(Inventory(
             telegram_id=user.telegram_id, number=str(p["number"]),
@@ -485,6 +530,7 @@ def keep_phone(payload: dict, user: Optional[User] = Depends(get_current_user_op
             operator_name=str(p.get("operator_name") or ""),
             is_vip=bool(p.get("is_vip", False)),
         ))
+        db.delete(row)
         added += 1
     db.flush()
     new_ach = _check_achievements(db, user)
@@ -528,9 +574,11 @@ def sell_all(user: Optional[User] = Depends(get_current_user_optional), db: Sess
 @router.post("/sell-immediate")
 def sell_immediate(payload: dict, user: Optional[User] = Depends(get_current_user_optional), db: Session = Depends(get_db)):
     if not user: raise HTTPException(status_code=401, detail="Not authorized")
-    phones = payload.get("phones") or []
-    if not isinstance(phones, list) or not phones: raise HTTPException(status_code=400, detail="phones required")
+    pending = _get_pending_for_claim(db, user.telegram_id, payload.get("pending_ids"))
+    phones = [json.loads(row.phone_json) for row in pending]
     total = sum(int(p.get("price") or 0) for p in phones)
+    for row in pending:
+        db.delete(row)
     user.balance += total
     db.flush()
     new_ach = _check_achievements(db, user)
@@ -880,8 +928,9 @@ def get_referrals(user: Optional[User] = Depends(get_current_user_optional), db:
     if not user: raise HTTPException(status_code=401, detail="Not authorized")
     rewards = db.query(ReferralReward).filter(ReferralReward.referrer_id == user.telegram_id).order_by(desc(ReferralReward.created_at)).limit(30).all()
     total_earned = sum(r.reward_referrer for r in rewards)
+    bot_username = settings.BOT_USERNAME.strip().lstrip("@")
     return {
-        "link": f"https://t.me/{(settings.WEBAPP_URL or '').split('/')[-1] or 'bot'}?start=ref_{user.telegram_id}",
+        "link": f"https://t.me/{bot_username}?start=ref_{user.telegram_id}" if bot_username else "",
         "count": len(rewards),
         "total_earned": total_earned,
         "rewards": [{
@@ -942,6 +991,9 @@ def trade_create(payload: dict, user: Optional[User] = Depends(get_current_user_
     from_money = int(payload.get("from_money") or 0)
     to_money = int(payload.get("to_money") or 0)
     message = (payload.get("message") or "")[:256]
+
+    if from_money < 0 or to_money < 0:
+        raise HTTPException(status_code=400, detail="Сумма не может быть отрицательной")
 
     if not from_items and not to_items and not from_money and not to_money:
         raise HTTPException(status_code=400, detail="Добавь номера или деньги")
@@ -1030,8 +1082,12 @@ def trade_respond(trade_id: int, payload: dict, user: Optional[User] = Depends(g
 
     from_ids = json.loads(trade.from_items or "[]")
     to_ids = json.loads(trade.to_items or "[]")
-    from_items = db.query(Inventory).filter(Inventory.id.in_(from_ids)).all() if from_ids else []
-    to_items = db.query(Inventory).filter(Inventory.id.in_(to_ids)).all() if to_ids else []
+    from_items = db.query(Inventory).filter(
+        Inventory.id.in_(from_ids), Inventory.telegram_id == from_user.telegram_id
+    ).all() if from_ids else []
+    to_items = db.query(Inventory).filter(
+        Inventory.id.in_(to_ids), Inventory.telegram_id == user.telegram_id
+    ).all() if to_ids else []
 
     if len(from_items) != len(from_ids): raise HTTPException(status_code=400, detail="Один из номеров отправителя уже продан")
     if len(to_items) != len(to_ids): raise HTTPException(status_code=400, detail="Один из твоих номеров уже продан")
