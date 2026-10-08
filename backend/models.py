@@ -80,6 +80,14 @@ class SpinLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class PendingSpin(Base):
+    __tablename__ = "pending_spins"
+    id = Column(Integer, primary_key=True)
+    telegram_id = Column(BigInteger, nullable=False, index=True)
+    phone_json = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Inventory(Base):
     __tablename__ = "inventory"
     id = Column(Integer, primary_key=True)
