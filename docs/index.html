@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Phone Numbers</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css">
+<script src="config.js?v=2026v4"></script>
+<link rel="stylesheet" href="styles.css?v=2026v4">
 </head>
 <body>
 
@@ -177,6 +178,11 @@
         <div class="rarity-options" id="rarityOptions"></div>
       </div>
 
+      <div class="connection-status" id="connectionStatus" role="alert" hidden>
+        <span id="connectionMessage"></span>
+        <button type="button" id="retryBtn">Повторить</button>
+      </div>
+
       <div class="bonus-card-main" id="bonusCard">
         <div class="bonus-icon">💰</div>
         <div class="bonus-info">
@@ -235,8 +241,8 @@
           <button class="transfer-btn money-btn" id="openMoneyBtn" type="button">
             <div class="tb-icon">💸</div>
             <div class="tb-text">
-              <div class="tb-title">Перевести ₽</div>
-              <div class="tb-sub">Просто деньги</div>
+          <div class="tb-title">Предложить перевод ₽</div>
+          <div class="tb-sub">Получатель подтвердит</div>
             </div>
           </button>
           <button class="transfer-btn trade-btn-main" id="openTradeBtn" type="button">
@@ -558,6 +564,6 @@
 <div class="toast" id="toast"></div>
 <div class="fireworks" id="fireworks"></div>
 
-<script type="module" src="app.js?v=2026v2"></script>
+<script type="module" src="app.js?v=2026v5"></script>
 </body>
 </html>
