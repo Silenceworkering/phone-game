@@ -75,6 +75,7 @@ uvicorn backend.main:app --reload
 
 5. **Environment Variables:**
    - `BOT_TOKEN` — токен
+   - `BOT_USERNAME` — имя бота без @ (для реферальных ссылок)
    - `OWNER_TELEGRAM_ID` — твой ID
    - `WEBAPP_URL` — URL фронта (GitHub Pages)
    - `ADMIN_URL` — `https://твой-сервис.onrender.com/admin`
@@ -87,8 +88,12 @@ uvicorn backend.main:app --reload
 ### 3. GitHub Pages для фронта
 1. **Settings** → **Pages**
 2. Source: `Deploy from a branch`
-3. Branch: `main`, папка: `/frontend`
+3. Branch: `main`, папка: `/docs`
 4. Сохрани — получишь URL `https://твой-ник.github.io/phone-game/`
+
+Перед публикацией укажи точный HTTPS-адрес своего Render Web Service в
+`docs/config.js`. Адрес должен открывать `/health` и возвращать
+`{"ok":true}`. После изменений в `docs` обнови страницу Mini App.
 
 ### 4. Настрой бота
 - В [@BotFather](https://t.me/BotFather): `/mybots` → бот → **Bot Settings** → **Menu Button**
